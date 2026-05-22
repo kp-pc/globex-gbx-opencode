@@ -16,6 +16,7 @@ A lightweight cryptocurrency optimised for ARM devices (Raspberry Pi, mobile).
 - **REST API** (FastAPI) with full node functionality
 - **CPU miner** with configurable threads
 - **Web dashboard** served by the node with real-time mining stats
+- **Android SDK** (Retrofit & Repositories) for easy integration
 - **Staking** with lockup, rewards, and slashing
 - **Dev fund** with multi-sig and vesting
 
@@ -86,6 +87,37 @@ python cli.py balance --address <ADDRESS>
 | GET | `/peers` | Connected peers |
 | GET | `/stats` | Network stats |
 | GET | `/mining/stats` | Real-time mining statistics |
+
+## Android Integration
+
+The project includes a pre-built Android SDK using Retrofit for easy integration with your mobile applications.
+
+### Dependencies
+
+Add the following to your `build.gradle` file:
+
+```gradle
+dependencies {
+    implementation 'com.squareup.retrofit2:retrofit:2.9.0'
+    implementation 'com.squareup.retrofit2:converter-gson:2.9.0'
+}
+```
+
+### Usage
+
+Initialize the `GlobexRepository` with your node's base URL:
+
+```java
+GlobexRepository repository = new GlobexRepository("http://your-node-url:8545/");
+
+// Fetch node status
+repository.getNodeStatus().thenAccept(status -> {
+    System.out.println("Chain length: " + status.chain_length);
+}).exceptionally(ex -> {
+    ex.printStackTrace();
+    return null;
+});
+```
 
 ## Architecture
 
