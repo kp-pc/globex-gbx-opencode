@@ -57,12 +57,22 @@ tr:hover td { background: #1a1f2e; }
 .copy-btn:hover { text-decoration: underline; }
 .badge { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 600; background: #1f2937; color: #9ca3af; }
 .badge-success { background: #00c85322; color: #00c853; }
+.badge-warning { background: #ff980022; color: #ff9800; }
 .hidden { display: none !important; }
 .mt-2 { margin-top: 12px; }
 .mb-2 { margin-bottom: 12px; }
 .text-center { text-align: center; }
 .text-mono { font-family: 'Courier New', monospace; }
-.truncate { max-width: 120px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.switch { position: relative; display: inline-block; width: 48px; height: 26px; flex-shrink: 0; }
+.switch input { opacity: 0; width: 0; height: 0; }
+.slider { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background: #1f2937; transition: 0.3s; border-radius: 26px; }
+.slider:before { position: absolute; content: ''; height: 20px; width: 20px; left: 3px; bottom: 3px; background: #e0e6f0; transition: 0.3s; border-radius: 50%; }
+.switch input:checked + .slider { background: #00c853; }
+.switch input:checked + .slider:before { transform: translateX(22px); }
+.setting-row { display: flex; justify-content: space-between; align-items: center; padding: 12px 0; border-bottom: 1px solid #1a1f2e; }
+.setting-row:last-child { border-bottom: none; }
+.setting-row .setting-label { font-size: 14px; color: #e0e6f0; }
+.setting-row .setting-desc { font-size: 11px; color: #6b7280; }
 @media (max-width: 600px) { .nav { gap: 2px; } .nav-btn { font-size: 11px; padding: 8px 6px; } }
 @media (min-width: 768px) { .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; } }
 </style>
@@ -79,6 +89,7 @@ tr:hover td { background: #1a1f2e; }
 <button class="nav-btn" onclick="showPage('wallet')">Wallet</button>
 <button class="nav-btn" onclick="showPage('send')">Send</button>
 <button class="nav-btn" onclick="showPage('receive')">Receive</button>
+<button class="nav-btn" onclick="showPage('security')">Security</button>
 </nav>
 
 <!-- ==================== DASHBOARD PAGE ==================== -->
@@ -208,6 +219,10 @@ tr:hover td { background: #1a1f2e; }
 <div class="form-group">
 <label>Private Key (to sign transaction)</label>
 <input class="input" id="sendPrivkey" type="password" placeholder="Your private key (hex)">
+<div class="row" style="margin-top:4px;">
+<button class="btn btn-secondary btn-sm" onclick="fillPrivkeyFromStorage()">Use Stored Key</button>
+<button class="btn btn-secondary btn-sm" onclick="storeCurrentPrivkey()">Save to Device</button>
+</div>
 </div>
 <button class="btn btn-primary btn-block" onclick="sendTransaction()">Send Transaction</button>
 <div id="sendResult" style="margin-top:12px;"></div>
@@ -245,15 +260,76 @@ tr:hover td { background: #1a1f2e; }
 </div>
 </div>
 
+<!-- ==================== SECURITY PAGE ==================== -->
+<div class="page" id="page-security">
+<div class="card">
+<h3>Screenshot Protection</h3>
+<div class="setting-row">
+<div>
+<div class="setting-label">Block Screenshots</div>
+<div class="setting-desc">Prevent screenshots on wallet and key screens</div>
+</div>
+<label class="switch">
+<input type="checkbox" id="screenshotToggle" onchange="toggleScreenshotProtection()">
+<span class="slider"></span>
+</label>
+</div>
+</div>
+
+<div class="card">
+<h3>PIN Protection</h3>
+<div id="pinSetup">
+<div class="form-group">
+<label>Set App Lock PIN (4-12 digits)</label>
+<input class="input" id="pinInput" type="password" inputmode="numeric" pattern="[0-9]*" maxlength="12" placeholder="Enter PIN">
+</div>
+<div class="form-group">
+<label>Confirm PIN</label>
+<input class="input" id="pinConfirm" type="password" inputmode="numeric" pattern="[0-9]*" maxlength="12" placeholder="Confirm PIN">
+</div>
+<div class="row">
+<button class="btn btn-primary btn-sm" onclick="setupPin()">Enable PIN</button>
+<button class="btn btn-danger btn-sm hidden" id="disablePinBtn" onclick="disablePin()">Disable PIN</button>
+</div>
+<div id="pinStatus" class="mt-2"></div>
+</div>
+</div>
+
+<div class="card">
+<h3>Biometric Authentication</h3>
+<div class="setting-row">
+<div>
+<div class="setting-label">Fingerprint / Face Unlock</div>
+<div class="setting-desc" id="biometricDesc">Use biometric sensor for wallet access</div>
+</div>
+<label class="switch">
+<input type="checkbox" id="biometricToggle" onchange="toggleBiometric()">
+<span class="slider"></span>
+</label>
+</div>
+<div id="biometricStatus" class="mt-2"></div>
+</div>
+
+<div class="card">
+<h3>Secure Key Storage</h3>
+<div class="setting-row">
+<div>
+<div class="setting-label">Android Keystore</div>
+<div class="setting-desc">Private keys are encrypted with device hardware-backed storage</div>
+</div>
+<span class="badge badge-success" id="keystoreStatus">Available</span>
+</div>
+<p style="font-size:12px;color:#6b7280;margin-top:8px;">Keys are encrypted using AES-256 GCM with a key stored in the Android Keystore, backed by the device's trusted execution environment (TEE).</p>
+</div>
+</div>
+
 </div>
 
 <script>
 const API = window.location.origin;
-let currentWallet = null;
 
 // ---- UTILITY ----
 async function api(path, opts) {
-try {
 const config = { ...opts, headers: { 'Content-Type': 'application/json', ...(opts?.headers||{}) } };
 const r = await fetch(`${API}${path}`, config);
 if (!r.ok) {
@@ -261,11 +337,10 @@ const err = await r.json().catch(() => ({ detail: r.statusText }));
 throw new Error(err.detail || r.statusText);
 }
 return r.status === 204 ? null : await r.json();
-} catch(e) {
-document.getElementById('statusDot').className = 'status-dot offline';
-document.getElementById('nodeStatus').textContent = 'Disconnected';
-throw e;
 }
+
+function getAndroid() {
+return (typeof Android !== 'undefined') ? Android : null;
 }
 
 // ---- NAVIGATION ----
@@ -273,7 +348,28 @@ function showPage(name) {
 document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
 document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
 document.getElementById('page-' + name).classList.add('active');
-document.querySelector(`.nav-btn:nth-child(${{dashboard:1,wallet:2,send:3,receive:4}[name]})`).classList.add('active');
+const idx = {dashboard:0, wallet:1, send:2, receive:3, security:4}[name];
+if (idx !== undefined) {
+document.querySelectorAll('.nav-btn')[idx].classList.add('active');
+}
+applyScreenshotProtection(name);
+}
+
+function applyScreenshotProtection(page) {
+const android = getAndroid();
+if (!android) return;
+const sensitive = ['wallet', 'send', 'receive', 'security'];
+if (sensitive.includes(page)) {
+android.enableScreenshotProtection();
+if (document.getElementById('screenshotToggle')) {
+document.getElementById('screenshotToggle').checked = true;
+}
+} else {
+android.disableScreenshotProtection();
+if (document.getElementById('screenshotToggle')) {
+document.getElementById('screenshotToggle').checked = false;
+}
+}
 }
 
 // ---- DASHBOARD ----
@@ -335,7 +431,7 @@ document.getElementById('walletAlert').textContent = msg;
 
 function showWalletSuccess(msg) {
 document.getElementById('walletAlert').className = 'alert alert-success';
-document.getElementById('walletAlert').textContent = msg;
+document.getElementById('walletAlert').innerHTML = msg;
 }
 
 async function createWallet() {
@@ -346,9 +442,9 @@ document.getElementById('walletUnloaded').classList.add('hidden');
 document.getElementById('walletLoaded').classList.remove('hidden');
 document.getElementById('walletAddressDisplay').textContent = data.address;
 document.getElementById('walletPubkeyDisplay').textContent = data.public_key;
-showWalletSuccess('Wallet created! Address: ' + data.address);
 if (data.wif) {
 showWalletSuccess('Wallet created! Address: ' + data.address + '<br>WIF: <span class="text-mono">' + data.wif + '</span><br><span style="color:#ff5252;">SAVE YOUR PRIVATE KEY!</span>');
+storeKeySecurely(data.address, data.wif);
 } else {
 showWalletSuccess('Encrypted wallet created! Address: ' + data.address);
 }
@@ -369,6 +465,7 @@ document.getElementById('walletLoaded').classList.remove('hidden');
 document.getElementById('walletAddressDisplay').textContent = data.address;
 document.getElementById('walletPubkeyDisplay').textContent = data.public_key;
 showWalletSuccess('Wallet imported! Address: ' + data.address);
+storeKeySecurely(data.address, wif);
 loadWalletBalance();
 } catch(e) {
 showWalletError('Failed: ' + e.message);
@@ -390,6 +487,19 @@ showWalletSuccess('Wallet recovered! Address: ' + data.address);
 loadWalletBalance();
 } catch(e) {
 showWalletError('Failed: ' + e.message);
+}
+}
+
+function storeKeySecurely(address, wif) {
+const android = getAndroid();
+if (!android) return;
+try {
+const result = android.storePrivateKey(address, wif);
+if (result === 'ok') {
+console.log('Key stored securely in Android Keystore');
+}
+} catch(e) {
+console.log('Key storage unavailable:', e);
 }
 }
 
@@ -421,8 +531,9 @@ document.getElementById('sendFrom').value = currentWallet.address;
 }
 
 function scanQR() {
-if (typeof Android !== 'undefined' && Android.scanQR) {
-Android.scanQR();
+const android = getAndroid();
+if (android && android.scanQR) {
+android.scanQR();
 } else {
 document.getElementById('sendTo').focus();
 alert('QR scanning is available on the Android app. On desktop, enter the address manually.');
@@ -432,6 +543,38 @@ alert('QR scanning is available on the Android app. On desktop, enter the addres
 function onQRScanned(content) {
 document.getElementById('sendTo').value = content;
 showPage('send');
+}
+
+function fillPrivkeyFromStorage() {
+const android = getAndroid();
+if (!android) { alert('Key storage only available on Android'); return; }
+const from = document.getElementById('sendFrom').value.trim();
+if (!from) { alert('Enter your sender address first'); return; }
+if (!android.hasPrivateKey(from)) { alert('No stored key for this address'); return; }
+
+if (android.isBiometricEnabled() && android.isBiometricAvailable()) {
+android.authenticateWithBiometric('fillKey');
+window._pendingKeyAddress = from;
+} else {
+try {
+const key = android.getPrivateKey(from);
+if (key && key !== 'not_found' && !key.startsWith('error')) {
+document.getElementById('sendPrivkey').value = key;
+}
+} catch(e) {
+alert('Failed to retrieve key: ' + e.message);
+}
+}
+}
+
+function storeCurrentPrivkey() {
+const android = getAndroid();
+if (!android) { alert('Key storage only available on Android'); return; }
+const from = document.getElementById('sendFrom').value.trim();
+const key = document.getElementById('sendPrivkey').value.trim();
+if (!from || !key) { alert('Enter sender address and private key first'); return; }
+const result = android.storePrivateKey(from, key);
+alert(result === 'ok' ? 'Key saved securely' : 'Failed: ' + result);
 }
 
 async function sendTransaction() {
@@ -452,15 +595,6 @@ const amountAtomic = Math.round(parseFloat(amount) * 100000000);
 const feeAtomic = Math.round(parseFloat(fee || '0') * 100000000);
 
 if (amountAtomic <= 0) { resultDiv.innerHTML = '<div class="alert alert-error">Amount must be greater than 0</div>'; return; }
-
-if (!/^[13][a-km-zA-HJ-NP-Z1-9]{25,34}$/.test(from) && from !== '0') {
-resultDiv.innerHTML = '<div class="alert alert-warning" style="background:#ff980022;border:1px solid #ff980044;color:#ff9800;">Warning: sender address format may be invalid</div>';
-}
-
-if (!/^[13][a-km-zA-HJ-NP-Z1-9]{25,34}$/.test(to) && to !== '0') {
-resultDiv.innerHTML = '<div class="alert alert-warning" style="background:#ff980022;border:1px solid #ff980044;color:#ff9800;">Warning: recipient address format may be invalid</div>';
-return;
-}
 
 resultDiv.innerHTML = '<div class="alert alert-info">Sending transaction...</div>';
 
@@ -485,7 +619,6 @@ resultDiv.innerHTML = '<div class="alert alert-error">Failed: ' + e.message + '<
 }
 }
 
-// Send amount validation
 document.getElementById('sendAmount').addEventListener('input', function() {
 if (this.value < 0) this.value = 0;
 });
@@ -500,13 +633,10 @@ generateQR();
 async function generateQR() {
 const addr = document.getElementById('receiveAddress').value.trim();
 if (!addr) { alert('Enter your GBX address'); return; }
-
 document.getElementById('receiveAddressDisplay').textContent = addr;
 document.getElementById('receiveResult').classList.remove('hidden');
-
 const qrContainer = document.getElementById('qrContainer');
-qrContainer.innerHTML = '<img src="' + API + '/wallet/' + encodeURIComponent(addr) + '/qrcode" alt="QR Code for ' + addr + '" style="width:200px;height:200px;">';
-
+qrContainer.innerHTML = '<img src="' + API + '/wallet/' + encodeURIComponent(addr) + '/qrcode" alt="QR Code" style="width:200px;height:200px;">';
 }
 
 function copyAddress() {
@@ -534,12 +664,106 @@ document.getElementById('copyStatus').textContent = 'Copied!';
 setTimeout(() => document.getElementById('copyStatus').textContent = '', 2000);
 }
 
+// ---- SECURITY ----
+function toggleScreenshotProtection() {
+const android = getAndroid();
+if (!android) { document.getElementById('screenshotToggle').checked = false; return; }
+const enabled = document.getElementById('screenshotToggle').checked;
+if (enabled) {
+android.enableScreenshotProtection();
+} else {
+android.disableScreenshotProtection();
+}
+}
+
+function setupPin() {
+const pin = document.getElementById('pinInput').value;
+const confirm = document.getElementById('pinConfirm').value;
+const status = document.getElementById('pinStatus');
+
+if (!pin || pin.length < 4) { status.innerHTML = '<div class="alert alert-error">PIN must be at least 4 digits</div>'; return; }
+if (pin !== confirm) { status.innerHTML = '<div class="alert alert-error">PINs do not match</div>'; return; }
+
+const android = getAndroid();
+if (android) {
+const result = android.setPin(pin);
+if (result === 'ok') {
+status.innerHTML = '<div class="alert alert-success">PIN enabled</div>';
+document.getElementById('disablePinBtn').classList.remove('hidden');
+document.getElementById('pinInput').value = '';
+document.getElementById('pinConfirm').value = '';
+} else {
+status.innerHTML = '<div class="alert alert-error">' + result + '</div>';
+}
+} else {
+localStorage.setItem('globex_pin', btoa(pin));
+status.innerHTML = '<div class="alert alert-success">PIN set (browser storage - less secure)</div>';
+document.getElementById('disablePinBtn').classList.remove('hidden');
+document.getElementById('pinInput').value = '';
+document.getElementById('pinConfirm').value = '';
+}
+}
+
+function disablePin() {
+const android = getAndroid();
+if (android) {
+android.disablePin();
+} else {
+localStorage.removeItem('globex_pin');
+}
+document.getElementById('pinStatus').innerHTML = '<div class="alert alert-info">PIN disabled</div>';
+document.getElementById('disablePinBtn').classList.add('hidden');
+}
+
+function toggleBiometric() {
+const android = getAndroid();
+const toggle = document.getElementById('biometricToggle');
+const status = document.getElementById('biometricStatus');
+
+if (!android) {
+toggle.checked = false;
+status.innerHTML = '<div class="alert alert-error">Biometrics only available on Android</div>';
+return;
+}
+
+if (toggle.checked) {
+if (!android.isBiometricAvailable()) {
+toggle.checked = false;
+status.innerHTML = '<div class="alert alert-error">Biometric hardware not available on this device</div>';
+return;
+}
+android.enableBiometric(true);
+status.innerHTML = '<div class="alert alert-success">Biometric authentication enabled</div>';
+document.getElementById('biometricDesc').textContent = 'Fingerprint / face unlock active for wallet access';
+} else {
+android.enableBiometric(false);
+status.innerHTML = '<div class="alert alert-info">Biometric authentication disabled</div>';
+document.getElementById('biometricDesc').textContent = 'Use biometric sensor for wallet access';
+}
+}
+
+// Callback for biometric auth
+function onBiometricResult(callbackId, success, error) {
+if (callbackId === 'fillKey' && success && window._pendingKeyAddress) {
+const android = getAndroid();
+if (android) {
+try {
+const key = android.getPrivateKey(window._pendingKeyAddress);
+if (key && key !== 'not_found' && !key.startsWith('error')) {
+document.getElementById('sendPrivkey').value = key;
+}
+} catch(e) {}
+}
+window._pendingKeyAddress = null;
+}
+}
+
 // ---- INIT ----
 refresh();
 setInterval(refresh, 5000);
 
-// Expose onQRScanned globally for Android bridge
 window.onQRScanned = onQRScanned;
+window.onBiometricResult = onBiometricResult;
 </script>
 </body>
 </html>
