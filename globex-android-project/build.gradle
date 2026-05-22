@@ -1,0 +1,29 @@
+// build.gradle – top‑level configuration
+buildscript {
+    repositories {
+        google()
+        mavenCentral()
+    }
+    dependencies {
+        // Android Gradle plugin is applied in modules via the plugins block,
+        // but we keep the classpath for legacy compatibility.
+        classpath("com.android.tools.build:gradle:8.5.0")
+        classpath("org.jetbrains.kotlin:kotlin-gradle-plugin:2.0.0")
+        classpath("com.google.dagger:hilt-android-gradle-plugin:2.50")
+    }
+}
+
+allprojects {
+    repositories {
+        google()
+        mavenCentral()
+    }
+}
+
+// Enable cache for faster builds (optional)
+tasks.withType(org.jetbrains.kotlin.gradle.tasks.KotlinCompile).configureEach {
+    kotlinOptions {
+        jvmTarget = "17"
+        freeCompilerArgs = ["-Xjvm-default=all"]
+    }
+}
