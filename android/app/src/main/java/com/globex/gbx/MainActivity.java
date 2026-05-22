@@ -1,10 +1,12 @@
 package com.globex.gbx;
 
+import android.content.Intent;
 import android.content.SharedPreferences;
 import android.graphics.Bitmap;
 import android.os.Bundle;
 import android.view.KeyEvent;
 import android.view.View;
+import android.webkit.JavascriptInterface;
 import android.webkit.WebChromeClient;
 import android.webkit.WebResourceRequest;
 import android.webkit.WebView;
@@ -17,6 +19,9 @@ import android.widget.Toast;
 import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.swiperefreshlayout.widget.SwipeRefreshLayout;
+
+import com.google.zxing.integration.android.IntentIntegrator;
+import com.google.zxing.integration.android.IntentResult;
 
 public class MainActivity extends AppCompatActivity {
 
@@ -52,6 +57,8 @@ public class MainActivity extends AppCompatActivity {
         webView.getSettings().setMixedContentMode(
             android.webkit.WebSettings.MIXED_CONTENT_ALWAYS_ALLOW
         );
+
+        webView.addJavascriptInterface(new QRScannerInterface(), "Android");
 
         webView.setWebViewClient(new WebViewClient() {
             @Override
@@ -125,5 +132,36 @@ public class MainActivity extends AppCompatActivity {
             return true;
         }
         return super.onKeyDown(keyCode, event);
+    }
+
+    private class QRScannerInterface {
+        @JavascriptInterface
+        public void scanQR() {
+            runOnUiThread(() -> {
+                IntentIntegrator integrator = new IntentIntegrator(MainActivity.this);
+                integrator.setDesiredBarcodeFormats(IntentIntegrator.QR_CODE);
+                integrator.setPrompt("Scan a GBX address QR code");
+                integrator.setCameraId(0);
+                integrator.setBeepEnabled(false);
+                integrator.setBarcodeImageEnabled(false);
+                integrator.initiateScan();
+            });
+        }
+    }
+
+    @Override
+    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+        IntentResult result = IntentIntegrator.parseActivityResult(requestCode, resultCode, data);
+        if (result != null) {
+            if (result.getContents() != null) {
+                String qrContent = result.getContents();
+                webView.evaluateJavascript(
+                    "javascript:window.onQRScanned('" + qrContent.replace("'", "\\'") + "')",
+                    null
+                );
+            }
+        } else {
+            super.onActivityResult(requestCode, resultCode, data);
+        }
     }
 }

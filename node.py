@@ -1,16 +1,20 @@
 import json
 import time
 import threading
+import io
+import base64
 import requests
 from pathlib import Path
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
+from fastapi.responses import Response
 from pydantic import BaseModel
+import qrcode
 
 import config
 from core import Blockchain
-from wallet import Wallet, create_transaction
+from wallet import Wallet, WalletError, create_transaction
 
 app = FastAPI(title="Globex GBX Node", version="0.1.0")
 
@@ -25,6 +29,9 @@ app.add_middleware(
 blockchain = Blockchain(db_path="globex_data/blockchain.db")
 mining_lock = threading.Lock()
 
+WALLETS_DIR = Path(__file__).parent / "globex_data" / "wallets"
+WALLETS_DIR.mkdir(parents=True, exist_ok=True)
+
 
 class TransactionRequest(BaseModel):
     sender: str
@@ -32,8 +39,29 @@ class TransactionRequest(BaseModel):
     amount: int
     fee: int = 0
     nonce: int = 0
+    memo: str = ""
     public_key: str = ""
     signature: str = ""
+
+
+class WalletCreateRequest(BaseModel):
+    password: str = ""
+
+
+class WalletImportRequest(BaseModel):
+    wif: str = ""
+    seed_phrase: str = ""
+    passphrase: str = ""
+    password: str = ""
+
+
+class SendRequest(BaseModel):
+    sender: str
+    recipient: str
+    amount: int
+    fee: int = 0
+    memo: str = ""
+    private_key: str = ""
 
 
 class PeerRequest(BaseModel):
@@ -89,6 +117,7 @@ def new_transaction(tx: TransactionRequest):
         "fee": tx.fee,
         "timestamp": int(time.time()),
         "nonce": tx.nonce,
+        "memo": tx.memo,
         "public_key": tx.public_key,
         "signature": tx.signature
     }
@@ -230,6 +259,70 @@ def get_stats():
         "total_supply": sum(blockchain.balances.values()),
         "latest_target": last.target if last else None,
     }
+
+
+@app.post("/wallet/create")
+def wallet_create(req: WalletCreateRequest):
+    wallet = Wallet()
+    path = WALLETS_DIR / f"{wallet.address}.json"
+    wallet.save(str(path), password=req.password or None)
+    return {
+        "address": wallet.address,
+        "public_key": wallet.public_key.hex(),
+        "wif": wallet.to_wif() if not req.password else None,
+        "encrypted": bool(req.password),
+        "file": str(path)
+    }
+
+
+@app.post("/wallet/import")
+def wallet_import(req: WalletImportRequest):
+    try:
+        if req.wif:
+            wallet = Wallet.from_wif(req.wif)
+        elif req.seed_phrase:
+            wallet = Wallet.from_seed_phrase(req.seed_phrase, req.passphrase)
+        else:
+            raise HTTPException(400, "Provide wif or seed_phrase")
+    except WalletError as e:
+        raise HTTPException(400, str(e))
+    path = WALLETS_DIR / f"{wallet.address}.json"
+    wallet.save(str(path), password=req.password or None)
+    return {
+        "address": wallet.address,
+        "public_key": wallet.public_key.hex(),
+        "file": str(path)
+    }
+
+
+@app.get("/wallet/{address}/qrcode")
+def wallet_qrcode(address: str):
+    qr = qrcode.make(address)
+    buf = io.BytesIO()
+    qr.save(buf, format="PNG")
+    buf.seek(0)
+    return Response(content=buf.getvalue(), media_type="image/png")
+
+
+@app.post("/transactions/create-and-send")
+def create_and_send(req: SendRequest):
+    try:
+        wallet = Wallet(private_key=bytes.fromhex(req.private_key))
+    except Exception:
+        raise HTTPException(400, "Invalid private key")
+    if wallet.address != req.sender:
+        raise HTTPException(400, "Private key does not match sender address")
+    balance = blockchain.get_balance(req.sender)
+    total = req.amount + req.fee
+    if balance < total:
+        raise HTTPException(400, f"Insufficient balance: {balance/config.GBX:.2f} GBX, need {total/config.GBX:.2f} GBX")
+    tx = create_transaction(req.sender, req.recipient, req.amount, req.fee)
+    tx["memo"] = req.memo
+    signed = wallet.sign_transaction(tx)
+    tx_hash = blockchain.add_transaction(signed)
+    if not tx_hash:
+        raise HTTPException(400, "Transaction rejected")
+    return {"message": "Transaction sent", "tx_hash": tx_hash}
 
 
 gui_dir = Path(__file__).parent / "gui"

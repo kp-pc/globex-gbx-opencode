@@ -2,71 +2,106 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Globex GBX Dashboard</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Globex GBX Wallet</title>
 <style>
 * { margin: 0; padding: 0; box-sizing: border-box; }
 body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #0a0e17; color: #e0e6f0; min-height: 100vh; }
-.container { max-width: 1200px; margin: 0 auto; padding: 20px; }
-header { display: flex; justify-content: space-between; align-items: center; padding: 20px 0; border-bottom: 1px solid #1a1f2e; margin-bottom: 30px; }
-h1 { font-size: 24px; font-weight: 700; color: #00c853; }
-h1 span { color: #607d8b; font-weight: 300; }
+.container { max-width: 1200px; margin: 0 auto; padding: 16px; }
+header { display: flex; justify-content: space-between; align-items: center; padding: 16px 0; border-bottom: 1px solid #1a1f2e; margin-bottom: 20px; }
+header h1 { font-size: 22px; font-weight: 700; color: #00c853; cursor: pointer; }
+header h1 span { color: #607d8b; font-weight: 300; }
 .status-dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 6px; }
 .status-dot.online { background: #00c853; box-shadow: 0 0 8px #00c85366; }
 .status-dot.offline { background: #ff5252; }
-.grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 20px; margin-bottom: 30px; }
-.card { background: #111827; border-radius: 12px; padding: 20px; border: 1px solid #1f2937; }
+.nav { display: flex; gap: 4px; margin-bottom: 20px; background: #111827; border-radius: 10px; padding: 4px; overflow-x: auto; }
+.nav-btn { flex: 1; padding: 10px 12px; border: none; background: transparent; color: #6b7280; font-size: 13px; font-weight: 600; cursor: pointer; border-radius: 8px; white-space: nowrap; transition: all 0.2s; }
+.nav-btn:hover { color: #d1d5db; }
+.nav-btn.active { background: #00c853; color: #0a0e17; }
+.page { display: none; }
+.page.active { display: block; }
+.card { background: #111827; border-radius: 12px; padding: 20px; border: 1px solid #1f2937; margin-bottom: 16px; }
 .card h3 { font-size: 13px; text-transform: uppercase; letter-spacing: 1px; color: #6b7280; margin-bottom: 10px; }
 .card .value { font-size: 28px; font-weight: 700; color: #f0f4ff; }
-.card .sub { font-size: 13px; color: #6b7280; margin-top: 4px; }
 .card .hash { font-family: 'Courier New', monospace; font-size: 12px; color: #9ca3af; word-break: break-all; }
-.section { margin-bottom: 30px; }
-.section h2 { font-size: 18px; margin-bottom: 16px; color: #d1d5db; }
+.grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 16px; margin-bottom: 20px; }
+.section { margin-bottom: 24px; }
+.section h2 { font-size: 16px; margin-bottom: 12px; color: #d1d5db; }
 table { width: 100%; border-collapse: collapse; }
-th { text-align: left; padding: 10px 12px; font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px; color: #6b7280; border-bottom: 1px solid #1f2937; }
-td { padding: 10px 12px; font-size: 14px; border-bottom: 1px solid #1a1f2e; }
+th { text-align: left; padding: 8px 10px; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; color: #6b7280; border-bottom: 1px solid #1f2937; }
+td { padding: 8px 10px; font-size: 13px; border-bottom: 1px solid #1a1f2e; }
 tr:hover td { background: #1a1f2e; }
-.btn { display: inline-block; padding: 8px 20px; border-radius: 8px; font-size: 14px; font-weight: 600; cursor: pointer; border: none; transition: all 0.2s; }
+.btn { display: inline-block; padding: 10px 22px; border-radius: 8px; font-size: 14px; font-weight: 600; cursor: pointer; border: none; transition: all 0.2s; text-align: center; }
 .btn-primary { background: #00c853; color: #0a0e17; }
 .btn-primary:hover { background: #00e660; }
 .btn-secondary { background: #1f2937; color: #e0e6f0; }
 .btn-secondary:hover { background: #2d3748; }
-.input { width: 100%; padding: 10px 14px; border-radius: 8px; border: 1px solid #1f2937; background: #0a0e17; color: #e0e6f0; font-size: 14px; }
-.input:focus { outline: none; border-color: #00c853; }
+.btn-danger { background: #ff5252; color: #fff; }
+.btn-danger:hover { background: #ff6e6e; }
+.btn-sm { padding: 6px 14px; font-size: 12px; }
+.btn-block { width: 100%; }
+.input, .select { width: 100%; padding: 10px 14px; border-radius: 8px; border: 1px solid #1f2937; background: #0a0e17; color: #e0e6f0; font-size: 14px; }
+.input:focus, .select:focus { outline: none; border-color: #00c853; }
+.select { appearance: auto; }
 .form-group { margin-bottom: 14px; }
 .form-group label { display: block; font-size: 12px; color: #6b7280; margin-bottom: 4px; }
-.row { display: flex; gap: 12px; align-items: flex-end; }
-.alert { padding: 12px 16px; border-radius: 8px; margin-bottom: 16px; font-size: 14px; }
+.row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+.alert { padding: 12px 16px; border-radius: 8px; margin-bottom: 14px; font-size: 13px; line-height: 1.5; }
 .alert-success { background: #00c85322; border: 1px solid #00c85344; color: #00c853; }
 .alert-error { background: #ff525222; border: 1px solid #ff525244; color: #ff5252; }
+.alert-info { background: #2196f322; border: 1px solid #2196f344; color: #64b5f6; }
+.address-display { font-family: 'Courier New', monospace; font-size: 13px; color: #e0e6f0; word-break: break-all; background: #0a0e17; padding: 12px; border-radius: 8px; border: 1px solid #1f2937; }
+.qr-container { display: flex; justify-content: center; padding: 16px 0; }
+.qr-container img { width: 200px; height: 200px; border-radius: 8px; background: #fff; padding: 8px; }
+.copy-btn { cursor: pointer; color: #00c853; font-size: 12px; margin-left: 8px; }
+.copy-btn:hover { text-decoration: underline; }
+.badge { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 600; background: #1f2937; color: #9ca3af; }
+.badge-success { background: #00c85322; color: #00c853; }
+.hidden { display: none !important; }
+.mt-2 { margin-top: 12px; }
+.mb-2 { margin-bottom: 12px; }
+.text-center { text-align: center; }
+.text-mono { font-family: 'Courier New', monospace; }
+.truncate { max-width: 120px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+@media (max-width: 600px) { .nav { gap: 2px; } .nav-btn { font-size: 11px; padding: 8px 6px; } }
+@media (min-width: 768px) { .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; } }
 </style>
 </head>
 <body>
 <div class="container">
-<header>
+<header onclick="showPage('dashboard')">
 <div><h1>Globex <span>GBX</span></h1></div>
 <div><span class="status-dot online" id="statusDot"></span><span id="nodeStatus">Connected</span></div>
 </header>
 
+<nav class="nav" id="mainNav">
+<button class="nav-btn active" onclick="showPage('dashboard')">Dashboard</button>
+<button class="nav-btn" onclick="showPage('wallet')">Wallet</button>
+<button class="nav-btn" onclick="showPage('send')">Send</button>
+<button class="nav-btn" onclick="showPage('receive')">Receive</button>
+</nav>
+
+<!-- ==================== DASHBOARD PAGE ==================== -->
+<div class="page active" id="page-dashboard">
 <div class="grid" id="statsGrid">
 <div class="card"><h3>Chain Height</h3><div class="value" id="chainHeight">-</div></div>
-<div class="card"><h3>Last Block</h3><div class="hash" id="lastBlock">-</div><div class="sub" id="lastBlockTime"></div></div>
-<div class="card"><h3>Mempool</h3><div class="value" id="mempoolSize">-</div><div class="sub">pending transactions</div></div>
-<div class="card"><h3>Total Supply</h3><div class="value" id="totalSupply">-</div><div class="sub">GBX</div></div>
-<div class="card"><h3>Peers</h3><div class="value" id="peerCount">-</div><div class="sub">connected nodes</div></div>
+<div class="card"><h3>Last Block</h3><div class="hash" id="lastBlock">-</div><div class="sub" style="font-size:12px;color:#6b7280;margin-top:4px;" id="lastBlockTime"></div></div>
+<div class="card"><h3>Mempool</h3><div class="value" id="mempoolSize">-</div><div class="sub" style="font-size:12px;color:#6b7280;">pending transactions</div></div>
+<div class="card"><h3>Total Supply</h3><div class="value" id="totalSupply">-</div><div class="sub" style="font-size:12px;color:#6b7280;">GBX</div></div>
+<div class="card"><h3>Peers</h3><div class="value" id="peerCount">-</div><div class="sub" style="font-size:12px;color:#6b7280;">connected nodes</div></div>
 <div class="card"><h3>Target</h3><div class="hash" id="currentTarget">-</div></div>
 </div>
 
-<div class="grid" style="grid-template-columns: 1fr 1fr;">
+<div class="two-col">
 <div class="card">
 <h3>Check Balance</h3>
 <div class="form-group"><input class="input" id="balanceAddress" placeholder="Enter GBX address"></div>
-<div class="row"><button class="btn btn-primary" onclick="checkBalance()">Check</button><div class="value" id="balanceResult" style="font-size:18px;margin-left:8px;"></div></div>
+<div class="row"><button class="btn btn-primary btn-sm" onclick="checkBalance()">Check</button><span style="font-size:16px;font-weight:700;" id="balanceResult"></span></div>
 </div>
 <div class="card">
 <h3>Mine Block</h3>
 <div class="form-group"><input class="input" id="minerAddress" placeholder="Miner reward address"></div>
-<button class="btn btn-primary" onclick="mineBlock()">Mine</button>
+<button class="btn btn-primary btn-sm" onclick="mineBlock()">Mine</button>
 <div id="mineResult" style="margin-top:8px;font-size:13px;"></div>
 </div>
 </div>
@@ -86,15 +121,162 @@ tr:hover td { background: #1a1f2e; }
 </div>
 </div>
 
+<!-- ==================== WALLET PAGE ==================== -->
+<div class="page" id="page-wallet">
+<div id="walletUnloaded">
+<div class="card">
+<h3>Create New Wallet</h3>
+<p style="font-size:13px;color:#9ca3af;margin-bottom:12px;">Generate a new Globex GBX wallet with ECDSA SECP256k1 key pair.</p>
+<button class="btn btn-primary btn-block" onclick="createWallet()">Create Wallet</button>
+</div>
+
+<div class="card">
+<h3>Import Wallet</h3>
+<div class="form-group">
+<label>Private Key (WIF)</label>
+<input class="input" id="importWif" placeholder="Enter WIF private key">
+</div>
+<button class="btn btn-secondary btn-block" onclick="importWallet()">Import from WIF</button>
+</div>
+
+<div class="card">
+<h3>Or Import from Seed Phrase</h3>
+<div class="form-group">
+<label>Seed Phrase (12-24 words)</label>
+<textarea class="input" id="importSeed" rows="2" style="resize:none;" placeholder="Enter your seed phrase"></textarea>
+</div>
+<div class="form-group">
+<label>Passphrase (optional)</label>
+<input class="input" id="importPassphrase" placeholder="BIP39 passphrase">
+</div>
+<button class="btn btn-secondary btn-block" onclick="importSeedWallet()">Import from Seed</button>
+</div>
+</div>
+
+<div id="walletLoaded" class="hidden">
+<div class="alert alert-success" id="walletAlert"></div>
+<div class="card">
+<h3>Your Wallet</h3>
+<div class="form-group">
+<label>Address</label>
+<div class="address-display" id="walletAddressDisplay"></div>
+</div>
+<div class="form-group">
+<label>Public Key</label>
+<div class="address-display" style="font-size:11px;" id="walletPubkeyDisplay"></div>
+</div>
+<div class="form-group">
+<label>Balance</label>
+<div class="value" id="walletBalance" style="font-size:24px;">- GBX</div>
+</div>
+</div>
+<div class="row" style="gap:8px;">
+<button class="btn btn-secondary btn-sm" onclick="loadWalletBalance()">Refresh Balance</button>
+<button class="btn btn-danger btn-sm" onclick="unloadWallet()">Lock Wallet</button>
+</div>
+</div>
+</div>
+
+<!-- ==================== SEND PAGE ==================== -->
+<div class="page" id="page-send">
+<div class="card">
+<h3>Send GBX</h3>
+<div class="form-group">
+<label>From (Your Address)</label>
+<input class="input" id="sendFrom" placeholder="Your GBX address">
+<div class="row" style="margin-top:4px;"><button class="btn btn-secondary btn-sm" onclick="fillFromWallet()">Use Wallet</button></div>
+</div>
+<div class="form-group">
+<label>Recipient Address</label>
+<div class="row">
+<input class="input" id="sendTo" placeholder="Recipient GBX address" style="flex:1;">
+<button class="btn btn-secondary btn-sm" onclick="scanQR()" id="scanQRBtn" title="Scan QR code">QR</button>
+</div>
+</div>
+<div class="form-group">
+<label>Amount (GBX)</label>
+<input class="input" id="sendAmount" type="number" step="0.00000001" min="0" placeholder="0.00">
+</div>
+<div class="form-group">
+<label>Fee (GBX)</label>
+<input class="input" id="sendFee" type="number" step="0.00000001" min="0" value="0.001" placeholder="0.001">
+</div>
+<div class="form-group">
+<label>Memo (optional)</label>
+<input class="input" id="sendMemo" placeholder="Transaction memo" maxlength="256">
+</div>
+<div class="form-group">
+<label>Private Key (to sign transaction)</label>
+<input class="input" id="sendPrivkey" type="password" placeholder="Your private key (hex)">
+</div>
+<button class="btn btn-primary btn-block" onclick="sendTransaction()">Send Transaction</button>
+<div id="sendResult" style="margin-top:12px;"></div>
+</div>
+</div>
+
+<!-- ==================== RECEIVE PAGE ==================== -->
+<div class="page" id="page-receive">
+<div class="card">
+<h3>Receive GBX</h3>
+<div class="form-group">
+<label>Your Address</label>
+<input class="input" id="receiveAddress" placeholder="Enter your GBX address to receive payments">
+<div class="row" style="margin-top:4px;">
+<button class="btn btn-secondary btn-sm" onclick="fillReceiveFromWallet()">Use Wallet</button>
+<button class="btn btn-secondary btn-sm" onclick="generateQR()" id="genQRBtn">Generate QR</button>
+</div>
+</div>
+</div>
+
+<div id="receiveResult" class="hidden">
+<div class="card">
+<h3>Your Receive Address</h3>
+<div class="address-display" id="receiveAddressDisplay"></div>
+<div class="row" style="margin-top:8px;">
+<button class="btn btn-secondary btn-sm" onclick="copyAddress()">Copy Address</button>
+<span id="copyStatus" style="font-size:12px;color:#00c853;"></span>
+</div>
+</div>
+<div class="card">
+<h3>QR Code</h3>
+<div class="qr-container" id="qrContainer"></div>
+<p style="font-size:12px;color:#6b7280;text-align:center;">Scan this QR code to send GBX to this address</p>
+</div>
+</div>
+</div>
+
+</div>
+
 <script>
 const API = window.location.origin;
+let currentWallet = null;
 
-async function api(path) {
-const r = await fetch(`${API}${path}`);
-if (!r.ok) throw new Error(await r.text());
-return r.json();
+// ---- UTILITY ----
+async function api(path, opts) {
+try {
+const config = { ...opts, headers: { 'Content-Type': 'application/json', ...(opts?.headers||{}) } };
+const r = await fetch(`${API}${path}`, config);
+if (!r.ok) {
+const err = await r.json().catch(() => ({ detail: r.statusText }));
+throw new Error(err.detail || r.statusText);
+}
+return r.status === 204 ? null : await r.json();
+} catch(e) {
+document.getElementById('statusDot').className = 'status-dot offline';
+document.getElementById('nodeStatus').textContent = 'Disconnected';
+throw e;
+}
 }
 
+// ---- NAVIGATION ----
+function showPage(name) {
+document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+document.getElementById('page-' + name).classList.add('active');
+document.querySelector(`.nav-btn:nth-child(${{dashboard:1,wallet:2,send:3,receive:4}[name]})`).classList.add('active');
+}
+
+// ---- DASHBOARD ----
 async function refresh() {
 try {
 const info = await api('/');
@@ -103,18 +285,20 @@ document.getElementById('mempoolSize').textContent = info.mempool_size;
 document.getElementById('peerCount').textContent = info.peers_count;
 document.getElementById('statusDot').className = 'status-dot online';
 document.getElementById('nodeStatus').textContent = 'Connected';
+
 const stats = await api('/stats');
 if (stats.last_block_hash) document.getElementById('lastBlock').textContent = stats.last_block_hash.slice(0, 16) + '...';
 if (stats.last_block_time) document.getElementById('lastBlockTime').textContent = new Date(stats.last_block_time * 1000).toLocaleString();
-const supply = (stats.total_supply / 100000000).toFixed(2);
-document.getElementById('totalSupply').textContent = supply;
+document.getElementById('totalSupply').textContent = (stats.total_supply / 100000000).toFixed(2);
 if (stats.latest_target) document.getElementById('currentTarget').textContent = '0x' + stats.latest_target.toString(16).slice(0, 16) + '...';
+
 const mempool = await api('/mempool');
 const mt = document.getElementById('mempoolTable').querySelector('tbody');
-mt.innerHTML = mempool.mempool.slice(0, 20).map(tx => `<tr><td style="font-family:monospace;font-size:11px;">${(tx.tx_hash||'').slice(0,10)}...</td><td style="font-family:monospace;font-size:11px;">${(tx.sender||'').slice(0,10)}...</td><td style="font-family:monospace;font-size:11px;">${(tx.recipient||'').slice(0,10)}...</td><td>${(tx.amount/100000000).toFixed(4)}</td><td>${(tx.fee||0)/100000000}</td></tr>`).join('');
+mt.innerHTML = (mempool.mempool || []).slice(0, 20).map(tx => `<tr><td class="text-mono" style="font-size:11px;">${(tx.tx_hash||'').slice(0,10)}...</td><td class="text-mono" style="font-size:11px;">${(tx.sender||'').slice(0,10)}...</td><td class="text-mono" style="font-size:11px;">${(tx.recipient||'').slice(0,10)}...</td><td>${(tx.amount/100000000).toFixed(4)}</td><td>${(tx.fee||0)/100000000}</td></tr>`).join('');
+
 const chain = await api('/chain');
 const ct = document.getElementById('chainTable').querySelector('tbody');
-ct.innerHTML = chain.chain.slice(-10).reverse().map(b => `<tr><td>${b.index}</td><td style="font-family:monospace;font-size:11px;">${b.hash.slice(0,16)}...</td><td>${new Date(b.timestamp*1000).toLocaleTimeString()}</td><td>${b.transactions.length}</td><td>${b.nonce}</td></tr>`).join('');
+ct.innerHTML = (chain.chain || []).slice(-10).reverse().map(b => `<tr><td>${b.index}</td><td class="text-mono" style="font-size:11px;">${(b.hash||'').slice(0,16)}...</td><td>${new Date((b.timestamp||0)*1000).toLocaleTimeString()}</td><td>${(b.transactions||[]).length}</td><td>${b.nonce}</td></tr>`).join('');
 } catch(e) {
 document.getElementById('statusDot').className = 'status-dot offline';
 document.getElementById('nodeStatus').textContent = 'Disconnected';
@@ -122,10 +306,10 @@ document.getElementById('nodeStatus').textContent = 'Disconnected';
 }
 
 async function checkBalance() {
-const addr = document.getElementById('balanceAddress').value;
+const addr = document.getElementById('balanceAddress').value.trim();
 if (!addr) return;
 try {
-const data = await api(`/balance/${addr}`);
+const data = await api(`/balance/${encodeURIComponent(addr)}`);
 document.getElementById('balanceResult').textContent = (data.balance / 100000000).toFixed(8) + ' GBX';
 } catch(e) {
 document.getElementById('balanceResult').textContent = 'Error';
@@ -133,7 +317,7 @@ document.getElementById('balanceResult').textContent = 'Error';
 }
 
 async function mineBlock() {
-const addr = document.getElementById('minerAddress').value || 'miner';
+const addr = document.getElementById('minerAddress').value.trim() || 'miner';
 try {
 const data = await api(`/mine?address=${encodeURIComponent(addr)}`);
 document.getElementById('mineResult').innerHTML = `<span style="color:#00c853;">Block ${data.index} mined</span>`;
@@ -143,8 +327,219 @@ document.getElementById('mineResult').innerHTML = `<span style="color:#ff5252;">
 }
 }
 
+// ---- WALLET ----
+function showWalletError(msg) {
+document.getElementById('walletAlert').className = 'alert alert-error';
+document.getElementById('walletAlert').textContent = msg;
+}
+
+function showWalletSuccess(msg) {
+document.getElementById('walletAlert').className = 'alert alert-success';
+document.getElementById('walletAlert').textContent = msg;
+}
+
+async function createWallet() {
+try {
+const data = await api('/wallet/create', { method: 'POST', body: JSON.stringify({}) });
+currentWallet = data;
+document.getElementById('walletUnloaded').classList.add('hidden');
+document.getElementById('walletLoaded').classList.remove('hidden');
+document.getElementById('walletAddressDisplay').textContent = data.address;
+document.getElementById('walletPubkeyDisplay').textContent = data.public_key;
+showWalletSuccess('Wallet created! Address: ' + data.address);
+if (data.wif) {
+showWalletSuccess('Wallet created! Address: ' + data.address + '<br>WIF: <span class="text-mono">' + data.wif + '</span><br><span style="color:#ff5252;">SAVE YOUR PRIVATE KEY!</span>');
+} else {
+showWalletSuccess('Encrypted wallet created! Address: ' + data.address);
+}
+loadWalletBalance();
+} catch(e) {
+showWalletError('Failed: ' + e.message);
+}
+}
+
+async function importWallet() {
+const wif = document.getElementById('importWif').value.trim();
+if (!wif) { showWalletError('Enter a WIF private key'); return; }
+try {
+const data = await api('/wallet/import', { method: 'POST', body: JSON.stringify({ wif }) });
+currentWallet = data;
+document.getElementById('walletUnloaded').classList.add('hidden');
+document.getElementById('walletLoaded').classList.remove('hidden');
+document.getElementById('walletAddressDisplay').textContent = data.address;
+document.getElementById('walletPubkeyDisplay').textContent = data.public_key;
+showWalletSuccess('Wallet imported! Address: ' + data.address);
+loadWalletBalance();
+} catch(e) {
+showWalletError('Failed: ' + e.message);
+}
+}
+
+async function importSeedWallet() {
+const seed = document.getElementById('importSeed').value.trim();
+if (!seed) { showWalletError('Enter a seed phrase'); return; }
+const passphrase = document.getElementById('importPassphrase').value.trim();
+try {
+const data = await api('/wallet/import', { method: 'POST', body: JSON.stringify({ seed_phrase: seed, passphrase }) });
+currentWallet = data;
+document.getElementById('walletUnloaded').classList.add('hidden');
+document.getElementById('walletLoaded').classList.remove('hidden');
+document.getElementById('walletAddressDisplay').textContent = data.address;
+document.getElementById('walletPubkeyDisplay').textContent = data.public_key;
+showWalletSuccess('Wallet recovered! Address: ' + data.address);
+loadWalletBalance();
+} catch(e) {
+showWalletError('Failed: ' + e.message);
+}
+}
+
+function unloadWallet() {
+currentWallet = null;
+document.getElementById('walletLoaded').classList.add('hidden');
+document.getElementById('walletUnloaded').classList.remove('hidden');
+document.getElementById('importWif').value = '';
+document.getElementById('importSeed').value = '';
+document.getElementById('importPassphrase').value = '';
+document.getElementById('sendPrivkey').value = '';
+document.getElementById('sendFrom').value = '';
+}
+
+async function loadWalletBalance() {
+if (!currentWallet) return;
+try {
+const data = await api(`/balance/${encodeURIComponent(currentWallet.address)}`);
+document.getElementById('walletBalance').textContent = (data.balance / 100000000).toFixed(8) + ' GBX';
+} catch(e) {
+document.getElementById('walletBalance').textContent = 'Error loading balance';
+}
+}
+
+// ---- SEND ----
+function fillFromWallet() {
+if (!currentWallet) { alert('Open a wallet first'); return; }
+document.getElementById('sendFrom').value = currentWallet.address;
+}
+
+function scanQR() {
+if (typeof Android !== 'undefined' && Android.scanQR) {
+Android.scanQR();
+} else {
+document.getElementById('sendTo').focus();
+alert('QR scanning is available on the Android app. On desktop, enter the address manually.');
+}
+}
+
+function onQRScanned(content) {
+document.getElementById('sendTo').value = content;
+showPage('send');
+}
+
+async function sendTransaction() {
+const from = document.getElementById('sendFrom').value.trim();
+const to = document.getElementById('sendTo').value.trim();
+const amount = document.getElementById('sendAmount').value.trim();
+const fee = document.getElementById('sendFee').value.trim();
+const memo = document.getElementById('sendMemo').value.trim();
+const privkey = document.getElementById('sendPrivkey').value.trim();
+const resultDiv = document.getElementById('sendResult');
+
+if (!from) { resultDiv.innerHTML = '<div class="alert alert-error">Enter your sender address</div>'; return; }
+if (!to) { resultDiv.innerHTML = '<div class="alert alert-error">Enter a recipient address</div>'; return; }
+if (!amount || parseFloat(amount) <= 0) { resultDiv.innerHTML = '<div class="alert alert-error">Enter a valid amount</div>'; return; }
+if (!privkey) { resultDiv.innerHTML = '<div class="alert alert-error">Enter your private key to sign</div>'; return; }
+
+const amountAtomic = Math.round(parseFloat(amount) * 100000000);
+const feeAtomic = Math.round(parseFloat(fee || '0') * 100000000);
+
+if (amountAtomic <= 0) { resultDiv.innerHTML = '<div class="alert alert-error">Amount must be greater than 0</div>'; return; }
+
+if (!/^[13][a-km-zA-HJ-NP-Z1-9]{25,34}$/.test(from) && from !== '0') {
+resultDiv.innerHTML = '<div class="alert alert-warning" style="background:#ff980022;border:1px solid #ff980044;color:#ff9800;">Warning: sender address format may be invalid</div>';
+}
+
+if (!/^[13][a-km-zA-HJ-NP-Z1-9]{25,34}$/.test(to) && to !== '0') {
+resultDiv.innerHTML = '<div class="alert alert-warning" style="background:#ff980022;border:1px solid #ff980044;color:#ff9800;">Warning: recipient address format may be invalid</div>';
+return;
+}
+
+resultDiv.innerHTML = '<div class="alert alert-info">Sending transaction...</div>';
+
+try {
+const data = await api('/transactions/create-and-send', {
+method: 'POST',
+body: JSON.stringify({
+sender: from,
+recipient: to,
+amount: amountAtomic,
+fee: feeAtomic,
+memo,
+private_key: privkey
+})
+});
+resultDiv.innerHTML = '<div class="alert alert-success">Transaction sent! Hash: <span class="text-mono">' + data.tx_hash + '</span></div>';
+document.getElementById('sendAmount').value = '';
+document.getElementById('sendMemo').value = '';
+document.getElementById('sendPrivkey').value = '';
+} catch(e) {
+resultDiv.innerHTML = '<div class="alert alert-error">Failed: ' + e.message + '</div>';
+}
+}
+
+// Send amount validation
+document.getElementById('sendAmount').addEventListener('input', function() {
+if (this.value < 0) this.value = 0;
+});
+
+// ---- RECEIVE ----
+function fillReceiveFromWallet() {
+if (!currentWallet) { alert('Open a wallet first'); return; }
+document.getElementById('receiveAddress').value = currentWallet.address;
+generateQR();
+}
+
+async function generateQR() {
+const addr = document.getElementById('receiveAddress').value.trim();
+if (!addr) { alert('Enter your GBX address'); return; }
+
+document.getElementById('receiveAddressDisplay').textContent = addr;
+document.getElementById('receiveResult').classList.remove('hidden');
+
+const qrContainer = document.getElementById('qrContainer');
+qrContainer.innerHTML = '<img src="' + API + '/wallet/' + encodeURIComponent(addr) + '/qrcode" alt="QR Code for ' + addr + '" style="width:200px;height:200px;">';
+
+}
+
+function copyAddress() {
+const addr = document.getElementById('receiveAddressDisplay').textContent;
+if (navigator.clipboard && navigator.clipboard.writeText) {
+navigator.clipboard.writeText(addr).then(() => {
+document.getElementById('copyStatus').textContent = 'Copied!';
+setTimeout(() => document.getElementById('copyStatus').textContent = '', 2000);
+}).catch(() => fallbackCopy(addr));
+} else {
+fallbackCopy(addr);
+}
+}
+
+function fallbackCopy(text) {
+const ta = document.createElement('textarea');
+ta.value = text;
+ta.style.position = 'fixed';
+ta.style.opacity = '0';
+document.body.appendChild(ta);
+ta.select();
+document.execCommand('copy');
+document.body.removeChild(ta);
+document.getElementById('copyStatus').textContent = 'Copied!';
+setTimeout(() => document.getElementById('copyStatus').textContent = '', 2000);
+}
+
+// ---- INIT ----
 refresh();
 setInterval(refresh, 5000);
+
+// Expose onQRScanned globally for Android bridge
+window.onQRScanned = onQRScanned;
 </script>
 </body>
 </html>
