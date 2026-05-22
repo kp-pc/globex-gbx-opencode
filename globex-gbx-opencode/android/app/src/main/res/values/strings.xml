@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Globex GBX</string>
+    <string name="default_node_url">http://10.0.2.2:8545/index.html</string>
+</resources>
