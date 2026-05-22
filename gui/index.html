@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Globex GBX Dashboard</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #0a0e17; color: #e0e6f0; min-height: 100vh; }
+.container { max-width: 1200px; margin: 0 auto; padding: 20px; }
+header { display: flex; justify-content: space-between; align-items: center; padding: 20px 0; border-bottom: 1px solid #1a1f2e; margin-bottom: 30px; }
+h1 { font-size: 24px; font-weight: 700; color: #00c853; }
+h1 span { color: #607d8b; font-weight: 300; }
+.status-dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 6px; }
+.status-dot.online { background: #00c853; box-shadow: 0 0 8px #00c85366; }
+.status-dot.offline { background: #ff5252; }
+.grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 20px; margin-bottom: 30px; }
+.card { background: #111827; border-radius: 12px; padding: 20px; border: 1px solid #1f2937; }
+.card h3 { font-size: 13px; text-transform: uppercase; letter-spacing: 1px; color: #6b7280; margin-bottom: 10px; }
+.card .value { font-size: 28px; font-weight: 700; color: #f0f4ff; }
+.card .sub { font-size: 13px; color: #6b7280; margin-top: 4px; }
+.card .hash { font-family: 'Courier New', monospace; font-size: 12px; color: #9ca3af; word-break: break-all; }
+.section { margin-bottom: 30px; }
+.section h2 { font-size: 18px; margin-bottom: 16px; color: #d1d5db; }
+table { width: 100%; border-collapse: collapse; }
+th { text-align: left; padding: 10px 12px; font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px; color: #6b7280; border-bottom: 1px solid #1f2937; }
+td { padding: 10px 12px; font-size: 14px; border-bottom: 1px solid #1a1f2e; }
+tr:hover td { background: #1a1f2e; }
+.btn { display: inline-block; padding: 8px 20px; border-radius: 8px; font-size: 14px; font-weight: 600; cursor: pointer; border: none; transition: all 0.2s; }
+.btn-primary { background: #00c853; color: #0a0e17; }
+.btn-primary:hover { background: #00e660; }
+.btn-secondary { background: #1f2937; color: #e0e6f0; }
+.btn-secondary:hover { background: #2d3748; }
+.input { width: 100%; padding: 10px 14px; border-radius: 8px; border: 1px solid #1f2937; background: #0a0e17; color: #e0e6f0; font-size: 14px; }
+.input:focus { outline: none; border-color: #00c853; }
+.form-group { margin-bottom: 14px; }
+.form-group label { display: block; font-size: 12px; color: #6b7280; margin-bottom: 4px; }
+.row { display: flex; gap: 12px; align-items: flex-end; }
+.alert { padding: 12px 16px; border-radius: 8px; margin-bottom: 16px; font-size: 14px; }
+.alert-success { background: #00c85322; border: 1px solid #00c85344; color: #00c853; }
+.alert-error { background: #ff525222; border: 1px solid #ff525244; color: #ff5252; }
+</style>
+</head>
+<body>
+<div class="container">
+<header>
+<div><h1>Globex <span>GBX</span></h1></div>
+<div><span class="status-dot online" id="statusDot"></span><span id="nodeStatus">Connected</span></div>
+</header>
+
+<div class="grid" id="statsGrid">
+<div class="card"><h3>Chain Height</h3><div class="value" id="chainHeight">-</div></div>
+<div class="card"><h3>Last Block</h3><div class="hash" id="lastBlock">-</div><div class="sub" id="lastBlockTime"></div></div>
+<div class="card"><h3>Mempool</h3><div class="value" id="mempoolSize">-</div><div class="sub">pending transactions</div></div>
+<div class="card"><h3>Total Supply</h3><div class="value" id="totalSupply">-</div><div class="sub">GBX</div></div>
+<div class="card"><h3>Peers</h3><div class="value" id="peerCount">-</div><div class="sub">connected nodes</div></div>
+<div class="card"><h3>Target</h3><div class="hash" id="currentTarget">-</div></div>
+</div>
+
+<div class="grid" style="grid-template-columns: 1fr 1fr;">
+<div class="card">
+<h3>Check Balance</h3>
+<div class="form-group"><input class="input" id="balanceAddress" placeholder="Enter GBX address"></div>
+<div class="row"><button class="btn btn-primary" onclick="checkBalance()">Check</button><div class="value" id="balanceResult" style="font-size:18px;margin-left:8px;"></div></div>
+</div>
+<div class="card">
+<h3>Mine Block</h3>
+<div class="form-group"><input class="input" id="minerAddress" placeholder="Miner reward address"></div>
+<button class="btn btn-primary" onclick="mineBlock()">Mine</button>
+<div id="mineResult" style="margin-top:8px;font-size:13px;"></div>
+</div>
+</div>
+
+<div class="section">
+<h2>Mempool Transactions</h2>
+<div class="card" style="padding:0;overflow-x:auto;">
+<table id="mempoolTable"><thead><tr><th>Hash</th><th>From</th><th>To</th><th>Amount</th><th>Fee</th></tr></thead><tbody></tbody></table>
+</div>
+</div>
+
+<div class="section">
+<h2>Chain Blocks</h2>
+<div class="card" style="padding:0;overflow-x:auto;">
+<table id="chainTable"><thead><tr><th>Height</th><th>Hash</th><th>Time</th><th>Txns</th><th>Nonce</th></tr></thead><tbody></tbody></table>
+</div>
+</div>
+</div>
+
+<script>
+const API = window.location.origin;
+
+async function api(path) {
+const r = await fetch(`${API}${path}`);
+if (!r.ok) throw new Error(await r.text());
+return r.json();
+}
+
+async function refresh() {
+try {
+const info = await api('/');
+document.getElementById('chainHeight').textContent = info.chain_length;
+document.getElementById('mempoolSize').textContent = info.mempool_size;
+document.getElementById('peerCount').textContent = info.peers_count;
+document.getElementById('statusDot').className = 'status-dot online';
+document.getElementById('nodeStatus').textContent = 'Connected';
+const stats = await api('/stats');
+if (stats.last_block_hash) document.getElementById('lastBlock').textContent = stats.last_block_hash.slice(0, 16) + '...';
+if (stats.last_block_time) document.getElementById('lastBlockTime').textContent = new Date(stats.last_block_time * 1000).toLocaleString();
+const supply = (stats.total_supply / 100000000).toFixed(2);
+document.getElementById('totalSupply').textContent = supply;
+if (stats.latest_target) document.getElementById('currentTarget').textContent = '0x' + stats.latest_target.toString(16).slice(0, 16) + '...';
+const mempool = await api('/mempool');
+const mt = document.getElementById('mempoolTable').querySelector('tbody');
+mt.innerHTML = mempool.mempool.slice(0, 20).map(tx => `<tr><td style="font-family:monospace;font-size:11px;">${(tx.tx_hash||'').slice(0,10)}...</td><td style="font-family:monospace;font-size:11px;">${(tx.sender||'').slice(0,10)}...</td><td style="font-family:monospace;font-size:11px;">${(tx.recipient||'').slice(0,10)}...</td><td>${(tx.amount/100000000).toFixed(4)}</td><td>${(tx.fee||0)/100000000}</td></tr>`).join('');
+const chain = await api('/chain');
+const ct = document.getElementById('chainTable').querySelector('tbody');
+ct.innerHTML = chain.chain.slice(-10).reverse().map(b => `<tr><td>${b.index}</td><td style="font-family:monospace;font-size:11px;">${b.hash.slice(0,16)}...</td><td>${new Date(b.timestamp*1000).toLocaleTimeString()}</td><td>${b.transactions.length}</td><td>${b.nonce}</td></tr>`).join('');
+} catch(e) {
+document.getElementById('statusDot').className = 'status-dot offline';
+document.getElementById('nodeStatus').textContent = 'Disconnected';
+}
+}
+
+async function checkBalance() {
+const addr = document.getElementById('balanceAddress').value;
+if (!addr) return;
+try {
+const data = await api(`/balance/${addr}`);
+document.getElementById('balanceResult').textContent = (data.balance / 100000000).toFixed(8) + ' GBX';
+} catch(e) {
+document.getElementById('balanceResult').textContent = 'Error';
+}
+}
+
+async function mineBlock() {
+const addr = document.getElementById('minerAddress').value || 'miner';
+try {
+const data = await api(`/mine?address=${encodeURIComponent(addr)}`);
+document.getElementById('mineResult').innerHTML = `<span style="color:#00c853;">Block ${data.index} mined</span>`;
+refresh();
+} catch(e) {
+document.getElementById('mineResult').innerHTML = `<span style="color:#ff5252;">Mining failed</span>`;
+}
+}
+
+refresh();
+setInterval(refresh, 5000);
+</script>
+</body>
+</html>

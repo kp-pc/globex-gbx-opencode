@@ -1,0 +1,10 @@
+__pycache__/
+*.pyc
+*.db
+globex_data/
+wallet*.json
+test_*.db
+.env
+*.egg-info/
+dist/
+build/
