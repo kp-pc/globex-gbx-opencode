@@ -1,12 +1,24 @@
 import json
 import struct
 import time
+import threading
 import sqlite3
 import os
 from typing import Optional
 
 import config
 import utils
+
+
+class MiningStats:
+    def __init__(self):
+        self.is_mining = False
+        self.hash_rate = 0.0
+        self.current_nonce = 0
+        self.last_block_height = 0
+        self.last_block_hash = ""
+        self.total_hashes = 0
+        self.start_time = 0
 
 
 def tx_hash(tx: dict) -> str:
@@ -85,6 +97,7 @@ class Blockchain:
         self.mempool = []
         self.balances = {}
         self._last_block = None
+        self.mining_stats = MiningStats()
         self._init_db()
         if not self._load_chain():
             self._create_genesis_block()
@@ -340,7 +353,25 @@ class Blockchain:
             target=target,
             nonce=0
         )
+
+        start_nonce = block.nonce
+        if hasattr(self, 'mining_stats'):
+            self.mining_stats.is_mining = True
+            self.mining_stats.current_nonce = block.nonce
+            self.mining_stats.last_block_height = height
+            self.mining_stats.start_time = time.time()
+
         block.mine()
+
+        if hasattr(self, 'mining_stats'):
+            elapsed = time.time() - self.mining_stats.start_time
+            hashes_mined = block.nonce - start_nonce
+            self.mining_stats.total_hashes += hashes_mined
+            self.mining_stats.hash_rate = (hashes_mined / elapsed) if elapsed > 0 else 0
+            self.mining_stats.is_mining = False
+            self.mining_stats.current_nonce = 0
+            self.mining_stats.last_block_hash = block.hash
+
         self._store_block(block)
         self._apply_block(block)
         mined_hashes = [tx["tx_hash"] for tx in txs if tx["tx_hash"]]

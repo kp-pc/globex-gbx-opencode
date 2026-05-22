@@ -15,6 +15,7 @@ import qrcode
 import config
 from core import Blockchain
 from wallet import Wallet, WalletError, create_transaction
+from staking import Staker
 
 app = FastAPI(title="Globex GBX Node", version="0.1.0")
 
@@ -27,6 +28,7 @@ app.add_middleware(
 )
 
 blockchain = Blockchain(db_path="globex_data/blockchain.db")
+staker = Staker(blockchain.conn)
 mining_lock = threading.Lock()
 
 WALLETS_DIR = Path(__file__).parent / "globex_data" / "wallets"
@@ -67,6 +69,11 @@ class SendRequest(BaseModel):
 class PeerRequest(BaseModel):
     address: str
     port: int
+
+
+class StakeRequest(BaseModel):
+    address: str
+    amount: int
 
 
 @app.get("/")
@@ -323,6 +330,94 @@ def create_and_send(req: SendRequest):
     if not tx_hash:
         raise HTTPException(400, "Transaction rejected")
     return {"message": "Transaction sent", "tx_hash": tx_hash}
+
+
+@app.get("/mining/stats")
+def mining_stats():
+    s = blockchain.mining_stats
+    return {
+        "is_mining": s.is_mining,
+        "hash_rate": s.hash_rate,
+        "current_nonce": s.current_nonce,
+        "last_block_height": s.last_block_height,
+        "last_block_hash": s.last_block_hash,
+        "total_hashes": s.total_hashes,
+    }
+
+
+@app.get("/mining/info")
+def mining_info():
+    last = blockchain.get_last_block()
+    if not last:
+        return {"difficulty": 1, "target": config.GENESIS_TARGET}
+    target_max = config.MAX_TARGET
+    difficulty = target_max / last.target if last.target > 0 else 1
+    return {
+        "difficulty": difficulty,
+        "target": last.target,
+        "target_hex": hex(last.target),
+        "block_height": last.index,
+        "block_time": config.TARGET_BLOCK_TIME,
+    }
+
+
+@app.get("/sync/status")
+def sync_status():
+    peers = blockchain.get_peers()
+    local_height = blockchain.get_chain_length()
+    syncing = False
+    highest_peer_height = 0
+    for peer in peers:
+        try:
+            resp = requests.get(
+                f"http://{peer['address']}:{peer['port']}/",
+                timeout=3
+            )
+            if resp.status_code == 200:
+                peer_height = resp.json().get("chain_length", 0)
+                if peer_height > highest_peer_height:
+                    highest_peer_height = peer_height
+        except Exception:
+            continue
+    if highest_peer_height > local_height + 1:
+        syncing = True
+    return {
+        "syncing": syncing,
+        "local_height": local_height,
+        "highest_peer_height": highest_peer_height,
+        "peers_connected": len(peers),
+        "progress": (local_height / highest_peer_height * 100) if highest_peer_height > 0 else 100,
+    }
+
+
+@app.get("/staking/validators")
+def staking_validators():
+    return {"validators": staker.get_validators(), "count": len(staker.get_validators())}
+
+
+@app.get("/staking/validator/{address}")
+def staking_validator(address: str):
+    v = staker.get_validator(address)
+    if not v:
+        raise HTTPException(404, "Validator not found")
+    return v
+
+
+@app.post("/staking/register")
+def staking_register(req: StakeRequest):
+    if req.amount < config.STAKE_MINIMUM:
+        raise HTTPException(400, f"Minimum stake is {config.STAKE_MINIMUM // config.GBX} GBX")
+    balance = blockchain.get_balance(req.address)
+    if balance < req.amount:
+        raise HTTPException(400, "Insufficient balance")
+    if staker.register_validator(req.address, req.amount):
+        return {"message": "Validator registered", "address": req.address, "stake": req.amount}
+    raise HTTPException(500, "Registration failed")
+
+
+@app.get("/staking/checkpoints")
+def staking_checkpoints():
+    return {"checkpoints": staker.get_checkpoints(limit=20)}
 
 
 gui_dir = Path(__file__).parent / "gui"

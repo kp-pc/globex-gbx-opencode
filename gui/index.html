@@ -94,26 +94,54 @@ tr:hover td { background: #1a1f2e; }
 
 <!-- ==================== DASHBOARD PAGE ==================== -->
 <div class="page active" id="page-dashboard">
+
 <div class="grid" id="statsGrid">
-<div class="card"><h3>Chain Height</h3><div class="value" id="chainHeight">-</div></div>
-<div class="card"><h3>Last Block</h3><div class="hash" id="lastBlock">-</div><div class="sub" style="font-size:12px;color:#6b7280;margin-top:4px;" id="lastBlockTime"></div></div>
+<div class="card"><h3>Block Height</h3><div class="value" id="chainHeight">-</div></div>
+<div class="card"><h3>Difficulty</h3><div class="value" id="difficulty" style="font-size:20px;">-</div></div>
+<div class="card"><h3>Hash Rate</h3><div class="value" id="hashRate" style="font-size:20px;">-</div></div>
+<div class="card"><h3>Peers</h3><div class="value" id="peerCount">-</div><div class="sub" style="font-size:12px;color:#6b7280;">connected nodes</div></div>
+<div class="card"><h3>Sync Status</h3><div class="value" id="syncStatus" style="font-size:18px;">-</div><div class="sub" style="font-size:12px;color:#6b7280;" id="syncProgress"></div></div>
 <div class="card"><h3>Mempool</h3><div class="value" id="mempoolSize">-</div><div class="sub" style="font-size:12px;color:#6b7280;">pending transactions</div></div>
 <div class="card"><h3>Total Supply</h3><div class="value" id="totalSupply">-</div><div class="sub" style="font-size:12px;color:#6b7280;">GBX</div></div>
-<div class="card"><h3>Peers</h3><div class="value" id="peerCount">-</div><div class="sub" style="font-size:12px;color:#6b7280;">connected nodes</div></div>
-<div class="card"><h3>Target</h3><div class="hash" id="currentTarget">-</div></div>
+<div class="card"><h3>Last Block</h3><div class="hash" id="lastBlock">-</div><div class="sub" style="font-size:12px;color:#6b7280;margin-top:4px;" id="lastBlockTime"></div></div>
 </div>
 
 <div class="two-col">
 <div class="card">
-<h3>Check Balance</h3>
-<div class="form-group"><input class="input" id="balanceAddress" placeholder="Enter GBX address"></div>
-<div class="row"><button class="btn btn-primary btn-sm" onclick="checkBalance()">Check</button><span style="font-size:16px;font-weight:700;" id="balanceResult"></span></div>
+<h3>Wallet Balance</h3>
+<div class="form-group"><input class="input" id="balanceAddress" placeholder="Enter GBX address" value=""></div>
+<div class="row"><button class="btn btn-primary btn-sm" onclick="checkBalance()">Check</button>
+<button class="btn btn-secondary btn-sm" onclick="fillBalanceFromWallet()">My Wallet</button>
+<span style="font-size:16px;font-weight:700;" id="balanceResult"></span></div>
 </div>
 <div class="card">
-<h3>Mine Block</h3>
+<div class="row" style="justify-content:space-between;"><h3>Mining</h3><span id="miningIndicator" style="display:none;font-size:12px;color:#00c853;"><span class="status-dot online"></span>Mining</span></div>
 <div class="form-group"><input class="input" id="minerAddress" placeholder="Miner reward address"></div>
-<button class="btn btn-primary btn-sm" onclick="mineBlock()">Mine</button>
+<div class="row"><button class="btn btn-primary btn-sm" onclick="mineBlock()">Mine Block</button>
+<button class="btn btn-secondary btn-sm" onclick="fillMinerFromWallet()">My Wallet</button></div>
 <div id="mineResult" style="margin-top:8px;font-size:13px;"></div>
+</div>
+</div>
+
+<div class="two-col">
+<div class="card">
+<h3>Staking</h3>
+<div id="stakingContent">
+<div class="form-group"><label>Your Validator Address</label><input class="input" id="stakeAddress" placeholder="Validator address"></div>
+<div id="validatorInfo" class="hidden">
+<div style="margin:8px 0;display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+<div><div style="font-size:11px;color:#6b7280;">Stake</div><div style="font-size:16px;font-weight:700;color:#f0f4ff;" id="stakeAmount">-</div></div>
+<div><div style="font-size:11px;color:#6b7280;">Status</div><div id="stakeStatus" class="badge badge-success">Active</div></div>
+<div><div style="font-size:11px;color:#6b7280;">Missed Blocks</div><div style="font-size:16px;font-weight:700;color:#f0f4ff;" id="stakeMissed">-</div></div>
+<div><div style="font-size:11px;color:#6b7280;">Locked Until</div><div style="font-size:12px;font-weight:700;color:#f0f4ff;" id="stakeLocked">-</div></div>
+</div>
+</div>
+<div class="row"><button class="btn btn-secondary btn-sm" onclick="checkValidatorStatus()">Check Status</button><span id="stakeResult" style="font-size:13px;"></span></div>
+</div>
+</div>
+<div class="card">
+<h3>Validators</h3>
+<div id="validatorListContent"><div style="font-size:13px;color:#6b7280;">Loading...</div></div>
 </div>
 </div>
 
@@ -386,7 +414,46 @@ const stats = await api('/stats');
 if (stats.last_block_hash) document.getElementById('lastBlock').textContent = stats.last_block_hash.slice(0, 16) + '...';
 if (stats.last_block_time) document.getElementById('lastBlockTime').textContent = new Date(stats.last_block_time * 1000).toLocaleString();
 document.getElementById('totalSupply').textContent = (stats.total_supply / 100000000).toFixed(2);
-if (stats.latest_target) document.getElementById('currentTarget').textContent = '0x' + stats.latest_target.toString(16).slice(0, 16) + '...';
+
+// Mining stats
+try {
+const mStats = await api('/mining/stats');
+document.getElementById('hashRate').textContent = mStats.hash_rate > 0 ? formatHashRate(mStats.hash_rate) : 'Idle';
+document.getElementById('hashRate').style.color = mStats.is_mining ? '#00c853' : '#6b7280';
+document.getElementById('miningIndicator').style.display = mStats.is_mining ? 'inline-flex' : 'none';
+if (mStats.is_mining) {
+document.getElementById('miningIndicator').innerHTML = '<span class="status-dot online"></span>Mining';
+}
+} catch(e) {
+document.getElementById('hashRate').textContent = '-';
+}
+
+// Difficulty
+try {
+const mInfo = await api('/mining/info');
+const diff = mInfo.difficulty;
+document.getElementById('difficulty').textContent = diff > 1000 ? (diff / 1000).toFixed(1) + 'K' : diff.toFixed(1);
+document.getElementById('difficulty').title = diff.toFixed(4);
+} catch(e) {
+document.getElementById('difficulty').textContent = '-';
+}
+
+// Sync status
+try {
+const sync = await api('/sync/status');
+if (sync.syncing) {
+document.getElementById('syncStatus').textContent = 'Syncing';
+document.getElementById('syncStatus').style.color = '#ff9800';
+document.getElementById('syncProgress').textContent = sync.progress.toFixed(1) + '% (' + sync.local_height + '/' + sync.highest_peer_height + ')';
+} else {
+document.getElementById('syncStatus').textContent = 'Synced';
+document.getElementById('syncStatus').style.color = '#00c853';
+document.getElementById('syncProgress').textContent = sync.local_height + ' blocks';
+}
+} catch(e) {
+document.getElementById('syncStatus').textContent = 'Unknown';
+document.getElementById('syncProgress').textContent = '';
+}
 
 const mempool = await api('/mempool');
 const mt = document.getElementById('mempoolTable').querySelector('tbody');
@@ -395,10 +462,30 @@ mt.innerHTML = (mempool.mempool || []).slice(0, 20).map(tx => `<tr><td class="te
 const chain = await api('/chain');
 const ct = document.getElementById('chainTable').querySelector('tbody');
 ct.innerHTML = (chain.chain || []).slice(-10).reverse().map(b => `<tr><td>${b.index}</td><td class="text-mono" style="font-size:11px;">${(b.hash||'').slice(0,16)}...</td><td>${new Date((b.timestamp||0)*1000).toLocaleTimeString()}</td><td>${(b.transactions||[]).length}</td><td>${b.nonce}</td></tr>`).join('');
+
+// Validators
+loadValidators();
 } catch(e) {
 document.getElementById('statusDot').className = 'status-dot offline';
 document.getElementById('nodeStatus').textContent = 'Disconnected';
 }
+}
+
+function formatHashRate(rate) {
+if (rate >= 1000000) return (rate / 1000000).toFixed(2) + ' MH/s';
+if (rate >= 1000) return (rate / 1000).toFixed(2) + ' KH/s';
+return rate.toFixed(1) + ' H/s';
+}
+
+function fillBalanceFromWallet() {
+if (!currentWallet) { alert('Open a wallet first'); return; }
+document.getElementById('balanceAddress').value = currentWallet.address;
+checkBalance();
+}
+
+function fillMinerFromWallet() {
+if (!currentWallet) { alert('Open a wallet first'); return; }
+document.getElementById('minerAddress').value = currentWallet.address;
 }
 
 async function checkBalance() {
@@ -420,6 +507,51 @@ document.getElementById('mineResult').innerHTML = `<span style="color:#00c853;">
 refresh();
 } catch(e) {
 document.getElementById('mineResult').innerHTML = `<span style="color:#ff5252;">Mining failed</span>`;
+}
+}
+
+async function checkValidatorStatus() {
+const addr = document.getElementById('stakeAddress').value.trim();
+const resultDiv = document.getElementById('stakeResult');
+if (!addr) { resultDiv.textContent = 'Enter address'; return; }
+try {
+const data = await api(`/staking/validator/${encodeURIComponent(addr)}`);
+document.getElementById('validatorInfo').classList.remove('hidden');
+document.getElementById('stakeAmount').textContent = (data.stake / 100000000).toFixed(2) + ' GBX';
+document.getElementById('stakeMissed').textContent = data.missed_blocks;
+const statusEl = document.getElementById('stakeStatus');
+if (data.is_slashed) {
+statusEl.textContent = 'Slashed';
+statusEl.className = 'badge badge-warning';
+} else {
+statusEl.textContent = 'Active';
+statusEl.className = 'badge badge-success';
+}
+const lockedDate = new Date(data.locked_until * 1000);
+document.getElementById('stakeLocked').textContent = lockedDate.toLocaleDateString();
+resultDiv.textContent = 'Found';
+} catch(e) {
+document.getElementById('validatorInfo').classList.add('hidden');
+resultDiv.textContent = 'Not found';
+}
+}
+
+async function loadValidators() {
+try {
+const data = await api('/staking/validators');
+const container = document.getElementById('validatorListContent');
+if (data.validators && data.validators.length > 0) {
+container.innerHTML = data.validators.slice(0, 5).map(v =>
+'<div style="padding:6px 0;border-bottom:1px solid #1a1f2e;font-size:12px;">' +
+'<div class="text-mono" style="color:#9ca3af;">' + (v.address || '').slice(0, 12) + '...</div>' +
+'<div style="color:#f0f4ff;">' + (v.stake / 100000000).toFixed(2) + ' GBX</div>' +
+'</div>'
+).join('');
+} else {
+container.innerHTML = '<div style="font-size:13px;color:#6b7280;">No active validators</div>';
+}
+} catch(e) {
+document.getElementById('validatorListContent').innerHTML = '<div style="font-size:13px;color:#ff5252;">Error loading</div>';
 }
 }
 
