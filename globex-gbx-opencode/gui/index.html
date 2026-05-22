@@ -20,7 +20,10 @@ h1 span { color: #607d8b; font-weight: 300; }
 .card .value { font-size: 28px; font-weight: 700; color: #f0f4ff; }
 .card .sub { font-size: 13px; color: #6b7280; margin-top: 4px; }
 .card .hash { font-family: 'Courier New', monospace; font-size: 12px; color: #9ca3af; word-break: break-all; }
-.section { margin-bottom: 30px; }
+.mining-stat-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; margin-top: 10px; }
+.mining-stat-item { background: #1a1f2e; padding: 10px; border-radius: 8px; text-align: center; }
+.mining-stat-label { font-size: 11px; color: #6b7280; text-transform: uppercase; margin-bottom: 5px; }
+.mining-stat-value { font-size: 16px; font-weight: 600; color: #00c853; }
 .section h2 { font-size: 18px; margin-bottom: 16px; color: #d1d5db; }
 table { width: 100%; border-collapse: collapse; }
 th { text-align: left; padding: 10px 12px; font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px; color: #6b7280; border-bottom: 1px solid #1f2937; }
@@ -57,17 +60,23 @@ tr:hover td { background: #1a1f2e; }
 <div class="card"><h3>Target</h3><div class="hash" id="currentTarget">-</div></div>
 </div>
 
-<div class="grid" style="grid-template-columns: 1fr 1fr;">
+<div class="section">
 <div class="card">
-<h3>Check Balance</h3>
-<div class="form-group"><input class="input" id="balanceAddress" placeholder="Enter GBX address"></div>
-<div class="row"><button class="btn btn-primary" onclick="checkBalance()">Check</button><div class="value" id="balanceResult" style="font-size:18px;margin-left:8px;"></div></div>
+<h3>Mining Dashboard</h3>
+<div id="miningDashboard" style="display:none;">
+<div class="mining-stat-grid">
+<div class="mining-stat-item"><div class="mining-stat-label">Status</div><div class="mining-stat-value" id="miningStatus">-</div></div>
+<div class="mining-stat-item"><div class="mining-stat-label">Hash Rate</div><div class="mining-stat-value" id="miningHashRate">-</div></div>
+<div class="mining-stat-item"><div class="mining-stat-label">Total Hashes</div><div class="mining-stat-value" id="miningTotalHashes">-</div></div>
+<div class="mining-stat-item"><div class="mining-stat-label">Current Nonce</div><div class="mining-stat-value" id="miningNonce">-</div></div>
 </div>
-<div class="card">
-<h3>Mine Block</h3>
-<div class="form-group"><input class="input" id="minerAddress" placeholder="Miner reward address"></div>
-<button class="btn btn-primary" onclick="mineBlock()">Mine</button>
-<div id="mineResult" style="margin-top:8px;font-size:13px;"></div>
+<div style="margin-top: 15px; font-size: 12px; color: #6b7280;">
+Last Block: <span id="miningLastBlock" style="font-family: monospace;">-</span>
+</div>
+</div>
+<div id="miningIdle" style="text-align:center; padding: 20px; color: #6b7280;">
+No active mining session detected.
+</div>
 </div>
 </div>
 
@@ -109,6 +118,27 @@ if (stats.last_block_time) document.getElementById('lastBlockTime').textContent 
 const supply = (stats.total_supply / 100000000).toFixed(2);
 document.getElementById('totalSupply').textContent = supply;
 if (stats.latest_target) document.getElementById('currentTarget').textContent = '0x' + stats.latest_target.toString(16).slice(0, 16) + '...';
+
+// Update Mining Dashboard
+try {
+const mStats = await api('/mining/stats');
+const dashboard = document.getElementById('miningDashboard');
+const idle = document.getElementById('miningIdle');
+if (mStats.is_mining) {
+dashboard.style.display = 'block';
+idle.style.display = 'none';
+document.getElementById('miningStatus').textContent = 'Active';
+document.getElementById('miningStatus').style.color = '#00c853';
+document.getElementById('miningHashRate').textContent = mStats.hash_rate.toFixed(2) + ' H/s';
+document.getElementById('miningTotalHashes').textContent = mStats.total_hashes.toLocaleString();
+document.getElementById('miningNonce').textContent = mStats.current_nonce;
+document.getElementById('miningLastBlock').textContent = mStats.last_block_hash.slice(0, 16) + '...';
+} else {
+dashboard.style.display = 'none';
+idle.style.display = 'block';
+}
+} catch(e) { console.error('Failed to fetch mining stats', e); }
+
 const mempool = await api('/mempool');
 const mt = document.getElementById('mempoolTable').querySelector('tbody');
 mt.innerHTML = mempool.mempool.slice(0, 20).map(tx => `<tr><td style="font-family:monospace;font-size:11px;">${(tx.tx_hash||'').slice(0,10)}...</td><td style="font-family:monospace;font-size:11px;">${(tx.sender||'').slice(0,10)}...</td><td style="font-family:monospace;font-size:11px;">${(tx.recipient||'').slice(0,10)}...</td><td>${(tx.amount/100000000).toFixed(4)}</td><td>${(tx.fee||0)/100000000}</td></tr>`).join('');

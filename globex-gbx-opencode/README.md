@@ -15,7 +15,7 @@ A lightweight cryptocurrency optimised for ARM devices (Raspberry Pi, mobile).
 - **SQLite** persistence — lightweight, zero-config
 - **REST API** (FastAPI) with full node functionality
 - **CPU miner** with configurable threads
-- **Web dashboard** served by the node
+- **Web dashboard** served by the node with real-time mining stats
 - **Staking** with lockup, rewards, and slashing
 - **Dev fund** with multi-sig and vesting
 
@@ -85,6 +85,7 @@ python cli.py balance --address <ADDRESS>
 | GET | `/mempool` | Pending transactions |
 | GET | `/peers` | Connected peers |
 | GET | `/stats` | Network stats |
+| GET | `/mining/stats` | Real-time mining statistics |
 
 ## Architecture
 

@@ -218,17 +218,16 @@ def get_peers():
     return {"peers": blockchain.get_peers()}
 
 
-@app.get("/stats")
-def get_stats():
-    last = blockchain.get_last_block()
+@app.get("/mining/stats")
+def get_mining_stats():
+    stats = blockchain.mining_stats
     return {
-        "chain_length": blockchain.get_chain_length(),
-        "last_block_hash": last.hash if last else None,
-        "last_block_time": last.timestamp if last else None,
-        "mempool_size": len(blockchain.mempool),
-        "peers_count": len(blockchain.get_peers()),
-        "total_supply": sum(blockchain.balances.values()),
-        "latest_target": last.target if last else None,
+        "is_mining": stats.is_mining,
+        "hash_rate": stats.hash_rate,
+        "current_nonce": stats.current_nonce,
+        "last_block_height": stats.last_block_height,
+        "last_block_hash": stats.last_block_hash,
+        "total_hashes": stats.total_hashes
     }
 
 

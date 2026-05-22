@@ -1,6 +1,7 @@
 import json
 import struct
 import time
+import threading
 import sqlite3
 import os
 from typing import Optional
@@ -13,6 +14,16 @@ def tx_hash(tx: dict) -> str:
     raw = json.dumps(tx, sort_keys=True).encode()
     return utils.sha256d(raw).hex()
 
+
+class MiningStats:
+    def __init__(self):
+        self.is_mining = False
+        self.hash_rate = 0.0
+        self.current_nonce = 0
+        self.last_block_height = 0
+        self.last_block_hash = ""
+        self.total_hashes = 0
+        self.start_time = 0
 
 class Block:
     def __init__(self, index, timestamp, transactions, prev_hash, target,
@@ -44,14 +55,20 @@ class Block:
     def calculate_hash(self) -> str:
         return utils.sha256d(self.header_bytes()).hex()
 
-    def mine(self) -> int:
+    def mine(self, on_progress=None) -> int:
         target_int = self.target
+        count = 0
         while True:
             hash_int = int(self.hash, 16)
             if hash_int < target_int:
+                if on_progress:
+                    on_progress(self.nonce, count)
                 return self.nonce
             self.nonce += 1
             self.hash = self.calculate_hash()
+            count += 1
+            if on_progress and count % 1000 == 0:
+                on_progress(self.nonce, count)
 
     def to_dict(self) -> dict:
         return {
@@ -85,6 +102,7 @@ class Blockchain:
         self.mempool = []
         self.balances = {}
         self._last_block = None
+        self.mining_stats = MiningStats()
         self._init_db()
         if not self._load_chain():
             self._create_genesis_block()
@@ -340,15 +358,45 @@ class Blockchain:
             target=target,
             nonce=0
         )
-        block.mine()
+
+        self.mining_stats.is_mining = True
+        self.mining_stats.start_time = time.time()
+        self.mining_stats.last_block_height = last_block.index
+        self.mining_stats.last_block_hash = last_block.hash
+        self.mining_stats.total_hashes = 0
+        self.mining_stats.hash_rate = 0.0
+        self.mining_stats.current_nonce = 0
+
+        last_time = time.time()
+        last_count = 0
+
+        def progress_callback(nonce, count):
+            nonlocal last_time, last_count
+            now = time.time()
+            elapsed = now - last_time
+            if elapsed >= 1.0:
+                hashes = count - last_count
+                self.mining_stats.hash_rate = hashes / elapsed
+                self.mining_stats.current_nonce = nonce
+                self.mining_stats.total_hashes += hashes
+                last_count = count
+                last_time = now
+
+        mining_thread = threading.Thread(target=block.mine, kwargs={'on_progress': progress_callback})
+        mining_thread.start()
+        mining_thread.join()
+
+        self.mining_stats.is_mining = False
+
         self._store_block(block)
         self._apply_block(block)
-        mined_hashes = [tx["tx_hash"] for tx in txs if tx["tx_hash"]]
+        mined_hashes = [tx["tx_hash"] for tx in block.transactions if tx.get("tx_hash")]
         c.execute("DELETE FROM mempool WHERE tx_hash IN ({})".format(
             ",".join("?" for _ in mined_hashes)), mined_hashes)
         self.conn.commit()
         self._load_mempool()
         return block
+
 
     def get_balance(self, address: str) -> int:
         return self.balances.get(address, 0)
