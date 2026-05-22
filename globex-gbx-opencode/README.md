@@ -136,21 +136,39 @@ String encrypted = SecurityManager.encrypt("my_private_key");
 String decrypted = SecurityManager.decrypt(encrypted);
 ```
 
-## Architecture
+## 🛠 Technical Architecture
 
-```
-globex-gbx-opencode/
-├── config.py      # Network parameters
-├── utils.py       # Hashing, Base58, Merkle
-├── core.py        # Block, Blockchain, PoW, mempool, SQLite
-├── wallet.py      # ECDSA keys, signing, verification
-├── node.py        # FastAPI REST server
-├── miner.py       # CPU mining client
-├── staking.py     # Hybrid PoW+PoS, validator staking
-├── fund.py        # Dev fund, multi-sig, vesting
-├── cli.py         # Command-line interface
-├── gui/           # Web dashboard
-└── requirements.txt
+Globex Android is built using **Modern Android Development (MAD)** principles:
+
+### 🏗 Clean Architecture Layers
+- **Domain Layer**: Pure Kotlin. Contains business entities (`Wallet`, `Block`), Use Cases, and Repository interfaces.
+- **Data Layer**: Implementation of repositories, Retrofit API services, and DTOs.
+- **Presentation Layer**: Jetpack Compose UI with MVVM (ViewModel $\rightarrow$ StateFlow $\rightarrow$ UI).
+
+### ⚙️ Technology Stack
+- **Language**: Kotlin (1.9+)
+- **UI Framework**: Jetpack Compose & Material 3
+- **Dependency Injection**: Hilt
+- **Networking**: Retrofit 2 & OkHttp (with Gzip and Logging)
+- **Asynchrony**: Kotlin Coroutines & Flow
+- **Local Security**: Android Keystore System (AES/GCM)
+- **Navigation**: Compose Navigation (Single Activity Architecture)
+
+### 🔌 API Integration
+The app communicates with the Globex Node via a REST API:
+- **Chain Management**: `/chain`, `/blocks/latest`
+- **Mining**: `/mine` (with real-time hashrate tracking)
+- **Wallets**: `/balance/{address}`, `/transactions/new`
+- **Network**: `/nodes/register`, `/nodes/resolve`
+
+### 📱 Android SDK for Developers
+Developers can integrate Globex functionality into their own apps using the `GlobexRepository`:
+
+```kotlin
+val repo = GlobexRepository(nodeUrl)
+repo.getChain().collect { chain -> 
+    // Handle blockchain data
+}
 ```
 
 ## License
