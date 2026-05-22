@@ -17,6 +17,7 @@ A lightweight cryptocurrency optimised for ARM devices (Raspberry Pi, mobile).
 - **CPU miner** with configurable threads
 - **Web dashboard** served by the node with real-time mining stats
 - **Android SDK** (Retrofit & Repositories) for easy integration
+- **Security** (Android Keystore) for hardware-backed local data protection
 - **Staking** with lockup, rewards, and slashing
 - **Dev fund** with multi-sig and vesting
 
@@ -117,6 +118,22 @@ repository.getNodeStatus().thenAccept(status -> {
     ex.printStackTrace();
     return null;
 });
+```
+
+## Security
+
+Sensitive data (such as wallet private keys or API tokens) can be securely stored on-device using the `SecurityManager` utility. This implementation uses the **Android Keystore**, ensuring that encryption keys are stored in a hardware-backed environment (TEE/SE), making them virtually impossible to extract even if the device is compromised.
+
+### Usage
+
+```java
+import com.globex.gbx.util.SecurityManager;
+
+// Encrypt data
+String encrypted = SecurityManager.encrypt("my_private_key");
+
+// Decrypt data
+String decrypted = SecurityManager.decrypt(encrypted);
 ```
 
 ## Architecture
