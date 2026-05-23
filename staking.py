@@ -18,6 +18,7 @@ class Staker:
                 stake INTEGER NOT NULL DEFAULT 0,
                 locked_until INTEGER NOT NULL DEFAULT 0,
                 missed_blocks INTEGER NOT NULL DEFAULT 0,
+                blocks_validated INTEGER NOT NULL DEFAULT 0,
                 is_slashed INTEGER NOT NULL DEFAULT 0,
                 registered_at INTEGER NOT NULL
             )
@@ -41,6 +42,22 @@ class Staker:
                 validator_count INTEGER NOT NULL DEFAULT 0
             )
         """)
+        c.execute("""
+            CREATE TABLE IF NOT EXISTS slashing_events (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                validator TEXT NOT NULL,
+                block_index INTEGER NOT NULL DEFAULT 0,
+                reason TEXT NOT NULL,
+                penalty INTEGER NOT NULL,
+                occurred_at INTEGER NOT NULL
+            )
+        """)
+        c.execute("PRAGMA table_info(validators)")
+        cols = [row[1] for row in c.fetchall()]
+        if "blocks_validated" not in cols:
+            c.execute("ALTER TABLE validators ADD COLUMN blocks_validated INTEGER NOT NULL DEFAULT 0")
+        if "registered_at" not in cols:
+            c.execute("ALTER TABLE validators ADD COLUMN registered_at INTEGER NOT NULL DEFAULT 0")
         self.conn.commit()
 
     def register_validator(self, address: str, amount: int) -> bool:
@@ -83,6 +100,13 @@ class Staker:
         if row and row[0] >= config.SLASHING_THRESHOLD_MISSED:
             self.slash(address, "Missed too many blocks")
 
+    def record_block_validated(self, address: str):
+        c = self.conn.cursor()
+        c.execute("""UPDATE validators
+                     SET blocks_validated = blocks_validated + 1
+                     WHERE address = ?""", (address,))
+        self.conn.commit()
+
     def slash(self, address: str, reason: str):
         c = self.conn.cursor()
         c.execute("SELECT stake FROM validators WHERE address = ? AND is_slashed = 0",
@@ -98,6 +122,10 @@ class Staker:
         c.execute("""UPDATE stakes
                      SET withdrawn = 1
                      WHERE validator = ? AND withdrawn = 0""", (address,))
+        c.execute("""INSERT INTO slashing_events
+                     (validator, block_index, reason, penalty, occurred_at)
+                     VALUES (?, ?, ?, ?, ?)""",
+                  (address, 0, reason, penalty, int(time.time())))
         self.conn.commit()
 
     def can_withdraw(self, address: str) -> bool:
@@ -142,6 +170,80 @@ class Staker:
         c.execute("SELECT 1 FROM checkpoints WHERE block_index = ?", (block_index,))
         return c.fetchone() is not None
 
+    def add_slashing_event(self, address: str, block_index: int, reason: str, penalty: int):
+        c = self.conn.cursor()
+        c.execute("""INSERT INTO slashing_events
+                     (validator, block_index, reason, penalty, occurred_at)
+                     VALUES (?, ?, ?, ?, ?)""",
+                  (address, block_index, reason, penalty, int(time.time())))
+        self.conn.commit()
+
+    def get_slashing_events(self, limit: int = 50) -> list:
+        c = self.conn.cursor()
+        c.execute("""SELECT * FROM slashing_events
+                     ORDER BY occurred_at DESC LIMIT ?""", (limit,))
+        return [{
+            "id": row["id"],
+            "validator": row["validator"],
+            "block_index": row["block_index"],
+            "reason": row["reason"],
+            "penalty": row["penalty"],
+            "occurred_at": row["occurred_at"],
+        } for row in c.fetchall()]
+
+    def get_staking_dashboard(self, address: str) -> Optional[dict]:
+        v = self.get_validator(address)
+        if not v:
+            return None
+        now = int(time.time())
+        lock_remaining = max(0, v["locked_until"] - now)
+        total_stake = sum(
+            s["stake"] for s in self.get_validators()
+        ) or 1
+        stake_share = v["stake"] / total_stake
+        blocks_per_year = 365 * 24 * 3600 // config.TARGET_BLOCK_TIME
+        annual_rewards = int(v["stake"] * config.STAKE_REWARD_RATE // 100)
+        daily_reward = annual_rewards // 365
+        return {
+            "address": address,
+            "stake": v["stake"],
+            "stake_formatted": v["stake"] / config.GBX,
+            "locked_until": v["locked_until"],
+            "lock_remaining": lock_remaining,
+            "lock_remaining_days": lock_remaining // 86400,
+            "total_stake_pool": total_stake,
+            "stake_share_pct": round(stake_share * 100, 2),
+            "estimated_annual_rewards": annual_rewards,
+            "estimated_annual_formatted": annual_rewards / config.GBX,
+            "estimated_daily_rewards": daily_reward,
+            "estimated_daily_formatted": daily_reward / config.GBX,
+            "apy_pct": config.STAKE_REWARD_RATE,
+        }
+
+    def get_validator_stats(self, address: str) -> Optional[dict]:
+        v = self.get_validator(address)
+        if not v:
+            return None
+        now = int(time.time())
+        registered_seconds = now - v.get("registered_at", now)
+        expected_blocks = max(1, registered_seconds // config.TARGET_BLOCK_TIME)
+        total_blocks = v["blocks_validated"] + v["missed_blocks"]
+        uptime_pct = round(
+            v["blocks_validated"] / max(1, total_blocks) * 100, 2
+        ) if total_blocks > 0 else 0.0
+        return {
+            "address": address,
+            "stake": v["stake"],
+            "stake_formatted": v["stake"] / config.GBX,
+            "blocks_validated": v["blocks_validated"],
+            "missed_blocks": v["missed_blocks"],
+            "total_blocks": total_blocks,
+            "uptime_pct": uptime_pct,
+            "is_slashed": v["is_slashed"],
+            "registered_at": v.get("registered_at", 0),
+            "locked_until": v["locked_until"],
+        }
+
     def get_validator(self, address: str) -> Optional[dict]:
         c = self.conn.cursor()
         c.execute("SELECT * FROM validators WHERE address = ?", (address,))
@@ -153,7 +255,9 @@ class Staker:
             "stake": row["stake"],
             "locked_until": row["locked_until"],
             "missed_blocks": row["missed_blocks"],
+            "blocks_validated": row["blocks_validated"],
             "is_slashed": bool(row["is_slashed"]),
+            "registered_at": row["registered_at"],
         }
 
     def get_validators(self) -> list:
@@ -164,6 +268,7 @@ class Staker:
             "stake": row["stake"],
             "locked_until": row["locked_until"],
             "missed_blocks": row["missed_blocks"],
+            "blocks_validated": row["blocks_validated"],
         } for row in c.fetchall()]
 
     def get_checkpoints(self, limit: int = 10) -> list:
@@ -179,4 +284,5 @@ class Staker:
 
     def on_block_mined(self, address: str, height: int, block_hash: str):
         self._distribute_stake_reward(address, height)
+        self.record_block_validated(address)
         self.finalize_checkpoint(height, block_hash)

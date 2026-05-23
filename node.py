@@ -96,6 +96,7 @@ def _mining_worker(address: str, num_threads: int):
         try:
             block = blockchain.mine_block(address)
             if block:
+                staker.on_block_mined(address, block.index, block.hash)
                 reward = block.transactions[0]["amount"] if block.transactions else 0
                 total_fees = sum(tx.get("fee", 0) for tx in block.transactions[1:])
                 if address not in mining_rewards:
@@ -190,6 +191,7 @@ def mine(address: str):
         block = blockchain.mine_block(address)
         if not block:
             raise HTTPException(status_code=500, detail="Mining failed")
+        staker.on_block_mined(address, block.index, block.hash)
         return {
             "message": "Block mined",
             "index": block.index,
@@ -492,7 +494,33 @@ def staking_register(req: StakeRequest):
 
 @app.get("/staking/checkpoints")
 def staking_checkpoints():
-    return {"checkpoints": staker.get_checkpoints(limit=20)}
+    last = blockchain.get_last_block()
+    return {
+        "checkpoints": staker.get_checkpoints(limit=20),
+        "last_block_height": last.index if last else 0,
+        "checkpoint_interval": config.FINALITY_CHECKPOINT_INTERVAL,
+    }
+
+
+@app.get("/staking/dashboard/{address}")
+def staking_dashboard(address: str):
+    data = staker.get_staking_dashboard(address)
+    if not data:
+        raise HTTPException(404, "Validator not found")
+    return data
+
+
+@app.get("/staking/validator/{address}/stats")
+def staking_validator_stats(address: str):
+    data = staker.get_validator_stats(address)
+    if not data:
+        raise HTTPException(404, "Validator not found")
+    return data
+
+
+@app.get("/staking/slashing-events")
+def staking_slashing_events():
+    return {"events": staker.get_slashing_events(limit=50), "count": len(staker.get_slashing_events(limit=50))}
 
 
 @app.post("/mining/start")

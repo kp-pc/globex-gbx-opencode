@@ -93,6 +93,7 @@ tr:hover td { background: #1a1f2e; }
 <button class="nav-btn" onclick="showPage('security')">Security</button>
 <button class="nav-btn" onclick="showPage('explorer')">Explorer</button>
 <button class="nav-btn" onclick="showPage('nodes')">Nodes</button>
+<button class="nav-btn" onclick="showPage('staking')">Staking</button>
 </nav>
 
 <!-- ==================== DASHBOARD PAGE ==================== -->
@@ -525,6 +526,83 @@ tr:hover td { background: #1a1f2e; }
 
 </div>
 
+<!-- ==================== STAKING PAGE ==================== -->
+<div class="page" id="page-staking">
+
+<div class="card">
+<h3>Staking Dashboard</h3>
+<div class="form-group">
+<label>Validator Address</label>
+<div class="row">
+<input class="input" id="stkAddress" placeholder="Enter validator address" style="flex:1;font-family:'Courier New',monospace;">
+<button class="btn btn-secondary btn-sm" onclick="document.getElementById('stkAddress').value=currentWallet?currentWallet.address:''">My Wallet</button>
+</div>
+</div>
+<div class="row">
+<button class="btn btn-primary btn-sm" onclick="loadStakingDashboard()">View Dashboard</button>
+<button class="btn btn-secondary btn-sm" onclick="loadValidatorStats()">Validator Stats</button>
+</div>
+<div id="stkDashboardResult" style="margin-top:10px;"></div>
+</div>
+
+<div id="stkDashboardContent" class="hidden">
+<div class="grid">
+<div class="card">
+<h3>Stake</h3>
+<div class="value" id="stkStakeValue">-</div>
+<div style="font-size:12px;color:#6b7280;" id="stkStakeShare"></div>
+</div>
+<div class="card">
+<h3>Lock Period</h3>
+<div class="value" id="stkLockValue" style="font-size:20px;">-</div>
+<div style="font-size:12px;color:#6b7280;" id="stkLockUntil"></div>
+</div>
+<div class="card">
+<h3>Est. Daily Rewards</h3>
+<div class="value" id="stkDailyReward" style="font-size:20px;">-</div>
+<div style="font-size:12px;color:#6b7280;" id="stkAPY"></div>
+</div>
+<div class="card">
+<h3>Est. Annual Rewards</h3>
+<div class="value" id="stkAnnualReward">-</div>
+<div style="font-size:12px;color:#6b7280;" id="stkStakePool"></div>
+</div>
+</div>
+</div>
+
+<div id="stkValidatorContent" class="hidden">
+<div class="card">
+<h3>Validator Dashboard</h3>
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+<div><div style="font-size:11px;color:#6b7280;">Status</div><div id="stkValStatus" class="badge badge-success" style="font-size:13px;">Active</div></div>
+<div><div style="font-size:11px;color:#6b7280;">Uptime</div><div style="font-size:22px;font-weight:700;color:#f0f4ff;" id="stkValUptime">-</div></div>
+<div><div style="font-size:11px;color:#6b7280;">Stake</div><div style="font-size:16px;font-weight:700;color:#f0f4ff;" id="stkValStake">-</div></div>
+<div><div style="font-size:11px;color:#6b7280;">Blocks Validated</div><div style="font-size:16px;font-weight:700;color:#00c853;" id="stkValBlocks">-</div></div>
+<div><div style="font-size:11px;color:#6b7280;">Missed Blocks</div><div style="font-size:16px;font-weight:700;color:#ff5252;" id="stkValMissed">-</div></div>
+<div><div style="font-size:11px;color:#6b7280;">Penalties</div><div id="stkValPenalty" style="font-size:14px;">None</div></div>
+</div>
+</div>
+</div>
+
+<div class="section">
+<h2>Slashing History</h2>
+<div class="card" style="padding:0;overflow-x:auto;">
+<table id="stkSlashingTable"><thead><tr><th>Validator</th><th>Block</th><th>Reason</th><th>Penalty</th><th>Time</th></tr></thead><tbody><tr><td colspan="5" style="text-align:center;color:#6b7280;">No slashing events</td></tr></tbody></table>
+</div>
+</div>
+
+<div class="section">
+<h2>Finality Checkpoints</h2>
+<div id="stkCheckpointsContainer">
+<div class="card" id="stkCheckpointsCard">
+<div style="display:flex;gap:8px;overflow-x:auto;padding:8px 0;" id="stkCheckpointBar"></div>
+<div style="margin-top:12px;font-size:12px;color:#6b7280;text-align:center;" id="stkCheckpointInfo"></div>
+</div>
+</div>
+</div>
+
+</div>
+
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 <script>
 const API = window.location.origin;
@@ -549,7 +627,7 @@ function showPage(name) {
 document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
 document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
 document.getElementById('page-' + name).classList.add('active');
-const idx = {dashboard:0, mining:1, wallet:2, send:3, receive:4, security:5, explorer:6, nodes:7}[name];
+const idx = {dashboard:0, mining:1, wallet:2, send:3, receive:4, security:5, explorer:6, nodes:7, staking:8}[name];
 if (idx !== undefined) {
 document.querySelectorAll('.nav-btn')[idx].classList.add('active');
 }
@@ -1381,6 +1459,107 @@ refreshNodes();
 } catch(e) {
 }
 }
+
+// ---- STAKING ----
+async function loadStakingDashboard() {
+const addr = document.getElementById('stkAddress').value.trim();
+const resultDiv = document.getElementById('stkDashboardResult');
+if (!addr) { resultDiv.innerHTML = '<div class="alert alert-error">Enter a validator address</div>'; return; }
+try {
+const data = await api('/staking/dashboard/' + encodeURIComponent(addr));
+document.getElementById('stkDashboardContent').classList.remove('hidden');
+document.getElementById('stkStakeValue').textContent = data.stake_formatted.toFixed(4) + ' GBX';
+document.getElementById('stkStakeShare').textContent = data.stake_share_pct + '% of stake pool';
+document.getElementById('stkLockValue').textContent = data.lock_remaining_days + ' days';
+document.getElementById('stkLockUntil').textContent = 'Locked until ' + new Date(data.locked_until * 1000).toLocaleDateString();
+document.getElementById('stkDailyReward').textContent = data.estimated_daily_formatted.toFixed(6) + ' GBX';
+document.getElementById('stkAPY').textContent = data.apy_pct + '% APY';
+document.getElementById('stkAnnualReward').textContent = data.estimated_annual_formatted.toFixed(4) + ' GBX';
+document.getElementById('stkStakePool').textContent = 'Total pool: ' + (data.total_stake_pool / 100000000).toFixed(2) + ' GBX';
+resultDiv.innerHTML = '';
+loadValidatorStats();
+loadSlashingHistory();
+loadCheckpoints();
+} catch(e) {
+document.getElementById('stkDashboardContent').classList.add('hidden');
+resultDiv.innerHTML = '<div class="alert alert-error">Not found: ' + e.message + '</div>';
+}
+}
+
+async function loadValidatorStats() {
+const addr = document.getElementById('stkAddress').value.trim();
+if (!addr) return;
+try {
+const data = await api('/staking/validator/' + encodeURIComponent(addr) + '/stats');
+document.getElementById('stkValidatorContent').classList.remove('hidden');
+document.getElementById('stkValUptime').textContent = data.uptime_pct + '%';
+document.getElementById('stkValStake').textContent = data.stake_formatted.toFixed(4) + ' GBX';
+document.getElementById('stkValBlocks').textContent = data.blocks_validated;
+document.getElementById('stkValMissed').textContent = data.missed_blocks;
+const statusEl = document.getElementById('stkValStatus');
+if (data.is_slashed) {
+statusEl.textContent = 'Slashed';
+statusEl.className = 'badge badge-warning';
+} else {
+statusEl.textContent = 'Active';
+statusEl.className = 'badge badge-success';
+}
+document.getElementById('stkValPenalty').textContent = data.is_slashed ? 'Slashed (10% penalty)' : 'None';
+} catch(e) {
+document.getElementById('stkValidatorContent').classList.add('hidden');
+}
+}
+
+async function loadSlashingHistory() {
+try {
+const data = await api('/staking/slashing-events');
+const tb = document.getElementById('stkSlashingTable').querySelector('tbody');
+if (!data.events || data.events.length === 0) {
+tb.innerHTML = '<tr><td colspan="5" style="text-align:center;color:#6b7280;">No slashing events</td></tr>';
+return;
+}
+tb.innerHTML = data.events.map(e =>
+'<tr>' +
+'<td class="text-mono" style="font-size:11px;">' + (e.validator || '').slice(0, 14) + '...</td>' +
+'<td>' + (e.block_index || '-') + '</td>' +
+'<td>' + e.reason + '</td>' +
+'<td style="color:#ff5252;">' + (e.penalty / 100000000).toFixed(4) + ' GBX</td>' +
+'<td>' + new Date(e.occurred_at * 1000).toLocaleString() + '</td>' +
+'</tr>'
+).join('');
+} catch(e) {
+}
+}
+
+async function loadCheckpoints() {
+try {
+const data = await api('/staking/checkpoints');
+const bar = document.getElementById('stkCheckpointBar');
+const info = document.getElementById('stkCheckpointInfo');
+const cps = data.checkpoints || [];
+if (cps.length === 0) {
+bar.innerHTML = '<div style="color:#6b7280;font-size:13px;">No checkpoints yet</div>';
+info.textContent = 'Checkpoints are created every ' + data.checkpoint_interval + ' blocks';
+return;
+}
+bar.innerHTML = cps.map(cp => {
+const label = '#' + cp.block_index;
+const isRecent = cp.block_index === cps[0].block_index;
+return '<div style="flex-shrink:0;text-align:center;padding:8px 12px;border-radius:8px;background:' + (isRecent ? '#00c85322' : '#1f2937') + ';border:1px solid ' + (isRecent ? '#00c85344' : '#1f2937') + ';">' +
+'<div style="font-size:11px;color:#9ca3af;">' + label + '</div>' +
+'<div style="font-size:18px;font-weight:700;color:' + (isRecent ? '#00c853' : '#f0f4ff') + ';">' + cp.validator_count + '</div>' +
+'<div style="font-size:10px;color:#6b7280;">validators</div>' +
+'</div>';
+}).join('');
+const lastCp = cps[0];
+info.textContent = 'Last checkpoint: #' + lastCp.block_index + ' at ' + new Date(lastCp.finalized_at * 1000).toLocaleString() + ' with ' + lastCp.validator_count + ' validators — Interval: every ' + data.checkpoint_interval + ' blocks';
+} catch(e) {
+}
+}
+
+document.getElementById('stkAddress').addEventListener('keydown', function(e) {
+if (e.key === 'Enter') loadStakingDashboard();
+});
 
 // ---- INIT ----
 refresh();
