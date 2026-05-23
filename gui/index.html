@@ -91,6 +91,8 @@ tr:hover td { background: #1a1f2e; }
 <button class="nav-btn" onclick="showPage('send')">Send</button>
 <button class="nav-btn" onclick="showPage('receive')">Receive</button>
 <button class="nav-btn" onclick="showPage('security')">Security</button>
+<button class="nav-btn" onclick="showPage('explorer')">Explorer</button>
+<button class="nav-btn" onclick="showPage('nodes')">Nodes</button>
 </nav>
 
 <!-- ==================== DASHBOARD PAGE ==================== -->
@@ -405,6 +407,124 @@ tr:hover td { background: #1a1f2e; }
 
 </div>
 
+<!-- ==================== EXPLORER PAGE ==================== -->
+<div class="page" id="page-explorer">
+
+<div class="card">
+<h3>Blockchain Explorer</h3>
+<div class="form-group">
+<label>Search by</label>
+<div class="row" style="gap:6px;margin-bottom:10px;">
+<button class="btn btn-sm" style="background:#00c853;color:#0a0e17;font-weight:600;" id="explorerTabBlock" onclick="switchExplorerTab('block')">Block</button>
+<button class="btn btn-sm btn-secondary" id="explorerTabHash" onclick="switchExplorerTab('hash')">Hash</button>
+<button class="btn btn-sm btn-secondary" id="explorerTabAddress" onclick="switchExplorerTab('address')">Address</button>
+<button class="btn btn-sm btn-secondary" id="explorerTabTx" onclick="switchExplorerTab('tx')">Transaction</button>
+</div>
+</div>
+<div class="form-group">
+<input class="input" id="explorerQuery" placeholder="Enter block height, hash, or address..." style="font-family:'Courier New',monospace;font-size:13px;">
+</div>
+<button class="btn btn-primary btn-block" onclick="explorerSearch()">Search</button>
+<div id="explorerError" class="alert alert-error hidden" style="margin-top:10px;"></div>
+</div>
+
+<div id="explorerBlockResult" class="hidden">
+<div class="card">
+<h3>Block Details</h3>
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+<div><div style="font-size:11px;color:#6b7280;">Height</div><div style="font-size:16px;font-weight:700;color:#f0f4ff;" id="expBlockIndex">-</div></div>
+<div><div style="font-size:11px;color:#6b7280;">Confirmations</div><div style="font-size:16px;font-weight:700;color:#00c853;" id="expBlockConfirmations">-</div></div>
+<div style="grid-column:1/-1;"><div style="font-size:11px;color:#6b7280;">Hash</div><div class="text-mono" style="font-size:12px;color:#9ca3af;word-break:break-all;" id="expBlockHash">-</div></div>
+<div style="grid-column:1/-1;"><div style="font-size:11px;color:#6b7280;">Previous Hash</div><div class="text-mono" style="font-size:12px;color:#9ca3af;word-break:break-all;" id="expBlockPrevHash">-</div></div>
+<div><div style="font-size:11px;color:#6b7280;">Timestamp</div><div style="font-size:14px;color:#f0f4ff;" id="expBlockTime">-</div></div>
+<div><div style="font-size:11px;color:#6b7280;">Nonce</div><div style="font-size:14px;font-weight:700;color:#f0f4ff;" id="expBlockNonce">-</div></div>
+<div><div style="font-size:11px;color:#6b7280;">Difficulty</div><div style="font-size:14px;font-weight:700;color:#f0f4ff;" id="expBlockDifficulty">-</div></div>
+<div><div style="font-size:11px;color:#6b7280;">Target</div><div class="text-mono" style="font-size:12px;color:#9ca3af;word-break:break-all;" id="expBlockTarget">-</div></div>
+<div style="grid-column:1/-1;"><div style="font-size:11px;color:#6b7280;">Merkle Root</div><div class="text-mono" style="font-size:12px;color:#9ca3af;word-break:break-all;" id="expBlockMerkleRoot">-</div></div>
+</div>
+</div>
+
+<div class="section" id="expTransactionsSection">
+<h2>Transactions <span id="expTxCount" style="font-size:13px;color:#6b7280;"></span></h2>
+<div class="card" style="padding:0;overflow-x:auto;">
+<table id="expTxTable"><thead><tr><th>Hash</th><th>From</th><th>To</th><th>Amount</th><th>Fee</th></tr></thead><tbody></tbody></table>
+</div>
+</div>
+</div>
+
+<div id="explorerAddressResult" class="hidden">
+<div class="card">
+<h3>Address Details</h3>
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+<div style="grid-column:1/-1;"><div style="font-size:11px;color:#6b7280;">Address</div><div class="text-mono" style="font-size:13px;color:#9ca3af;word-break:break-all;" id="expAddrValue">-</div></div>
+<div><div style="font-size:11px;color:#6b7280;">Balance</div><div style="font-size:20px;font-weight:700;color:#f0f4ff;" id="expAddrBalance">-</div></div>
+<div><div style="font-size:11px;color:#6b7280;">Transactions</div><div style="font-size:20px;font-weight:700;color:#f0f4ff;" id="expAddrTxCount">-</div></div>
+</div>
+</div>
+<div class="section">
+<h2>Transaction History</h2>
+<div class="card" style="padding:0;overflow-x:auto;">
+<table id="expAddrTxTable"><thead><tr><th>Hash</th><th>Block</th><th>Type</th><th>Amount</th></tr></thead><tbody></tbody></table>
+</div>
+</div>
+</div>
+
+<div id="explorerTxResult" class="hidden">
+<div class="card">
+<h3>Transaction Details</h3>
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+<div style="grid-column:1/-1;"><div style="font-size:11px;color:#6b7280;">Transaction Hash</div><div class="text-mono" style="font-size:12px;color:#9ca3af;word-break:break-all;" id="expTxHash">-</div></div>
+<div style="grid-column:1/-1;"><div style="font-size:11px;color:#6b7280;">From</div><div class="text-mono" style="font-size:12px;color:#9ca3af;word-break:break-all;" id="expTxFrom">-</div></div>
+<div style="grid-column:1/-1;"><div style="font-size:11px;color:#6b7280;">To</div><div class="text-mono" style="font-size:12px;color:#9ca3af;word-break:break-all;" id="expTxTo">-</div></div>
+<div><div style="font-size:11px;color:#6b7280;">Amount</div><div style="font-size:16px;font-weight:700;color:#f0f4ff;" id="expTxAmount">-</div></div>
+<div><div style="font-size:11px;color:#6b7280;">Fee</div><div style="font-size:16px;font-weight:700;color:#f0f4ff;" id="expTxFee">-</div></div>
+<div><div style="font-size:11px;color:#6b7280;">Block</div><div style="font-size:14px;color:#f0f4ff;" id="expTxBlock">-</div></div>
+<div><div style="font-size:11px;color:#6b7280;">Timestamp</div><div style="font-size:14px;color:#f0f4ff;" id="expTxTime">-</div></div>
+<div><div style="font-size:11px;color:#6b7280;">Status</div><div id="expTxStatus" class="badge badge-success">Confirmed</div></div>
+</div>
+</div>
+</div>
+
+</div>
+
+<!-- ==================== NODES PAGE ==================== -->
+<div class="page" id="page-nodes">
+
+<div class="grid">
+<div class="card">
+<h3>Add Node</h3>
+<div class="form-group">
+<label>Node Address</label>
+<input class="input" id="nodeAddress" placeholder="IP address or hostname" value="127.0.0.1">
+</div>
+<div class="form-group">
+<label>Port</label>
+<input class="input" id="nodePort" type="number" min="1" max="65535" placeholder="8545" value="8545">
+</div>
+<div class="row">
+<button class="btn btn-primary btn-sm" onclick="addNode()">Add Node</button>
+<button class="btn btn-secondary btn-sm" onclick="registerMyself()">Register Self</button>
+</div>
+<div id="nodeAddResult" style="margin-top:8px;font-size:13px;"></div>
+</div>
+
+<div class="card">
+<h3>Chain Resolution</h3>
+<p style="font-size:13px;color:#6b7280;margin-bottom:10px;">Resolve chain conflicts by comparing with connected peers.</p>
+<button class="btn btn-secondary btn-block" onclick="resolveChain()">Resolve Chain</button>
+<div id="resolveResult" style="margin-top:8px;font-size:13px;"></div>
+</div>
+</div>
+
+<div class="section">
+<h2>Connected Peers <span id="nodeCount" style="font-size:13px;color:#6b7280;"></span></h2>
+<div class="card" style="padding:0;overflow-x:auto;">
+<table id="nodeTable"><thead><tr><th>Address</th><th>Port</th><th>Latency</th><th>Height</th><th>Sync</th><th>Status</th><th>Action</th></tr></thead><tbody><tr><td colspan="7" style="text-align:center;color:#6b7280;">No peers connected</td></tr></tbody></table>
+</div>
+</div>
+
+</div>
+
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 <script>
 const API = window.location.origin;
@@ -429,7 +549,7 @@ function showPage(name) {
 document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
 document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
 document.getElementById('page-' + name).classList.add('active');
-const idx = {dashboard:0, mining:1, wallet:2, send:3, receive:4, security:5}[name];
+const idx = {dashboard:0, mining:1, wallet:2, send:3, receive:4, security:5, explorer:6, nodes:7}[name];
 if (idx !== undefined) {
 document.querySelectorAll('.nav-btn')[idx].classList.add('active');
 }
@@ -1067,10 +1187,207 @@ rewardsChart.update('none');
 }
 }
 
+// ---- EXPLORER ----
+let explorerTab = 'block';
+
+function switchExplorerTab(tab) {
+explorerTab = tab;
+['block','hash','address','tx'].forEach(t => {
+const el = document.getElementById('explorerTab' + t.charAt(0).toUpperCase() + t.slice(1));
+if (el) {
+el.style.background = t === tab ? '#00c853' : '';
+el.style.color = t === tab ? '#0a0e17' : '';
+el.className = t === tab ? 'btn btn-sm' : 'btn btn-sm btn-secondary';
+}
+});
+const input = document.getElementById('explorerQuery');
+const hints = {block:'Enter block height (e.g. 0)', hash:'Enter block hash', address:'Enter GBX address', tx:'Enter transaction hash'};
+input.placeholder = hints[tab] || 'Search...';
+document.getElementById('explorerBlockResult').classList.add('hidden');
+document.getElementById('explorerAddressResult').classList.add('hidden');
+document.getElementById('explorerTxResult').classList.add('hidden');
+document.getElementById('explorerError').classList.add('hidden');
+}
+
+async function explorerSearch() {
+const q = document.getElementById('explorerQuery').value.trim();
+const errDiv = document.getElementById('explorerError');
+errDiv.classList.add('hidden');
+document.getElementById('explorerBlockResult').classList.add('hidden');
+document.getElementById('explorerAddressResult').classList.add('hidden');
+document.getElementById('explorerTxResult').classList.add('hidden');
+
+if (!q) { errDiv.textContent = 'Please enter a search term'; errDiv.classList.remove('hidden'); return; }
+
+try {
+if (explorerTab === 'block') {
+const data = await api('/block/' + encodeURIComponent(q));
+showExplorerBlock(data);
+} else if (explorerTab === 'hash') {
+const data = await api('/block/' + encodeURIComponent(q));
+showExplorerBlock(data);
+} else if (explorerTab === 'address') {
+const data = await api('/address/' + encodeURIComponent(q));
+showExplorerAddress(data);
+} else if (explorerTab === 'tx') {
+const data = await api('/transaction/' + encodeURIComponent(q));
+showExplorerTx(data);
+}
+} catch(e) {
+errDiv.textContent = 'Not found: ' + e.message;
+errDiv.classList.remove('hidden');
+}
+}
+
+function showExplorerBlock(block) {
+document.getElementById('expBlockIndex').textContent = block.index;
+document.getElementById('expBlockConfirmations').textContent = block.confirmations;
+document.getElementById('expBlockHash').textContent = block.hash;
+document.getElementById('expBlockPrevHash').textContent = block.prev_hash;
+document.getElementById('expBlockTime').textContent = new Date(block.timestamp * 1000).toLocaleString();
+document.getElementById('expBlockNonce').textContent = block.nonce;
+document.getElementById('expBlockDifficulty').textContent = block.difficulty > 1000 ? (block.difficulty / 1000).toFixed(1) + 'K' : block.difficulty.toFixed(4);
+document.getElementById('expBlockTarget').textContent = block.target;
+document.getElementById('expBlockMerkleRoot').textContent = block.merkle_root;
+
+const txs = block.transactions || [];
+document.getElementById('expTxCount').textContent = '(' + txs.length + ')';
+const tb = document.getElementById('expTxTable').querySelector('tbody');
+tb.innerHTML = txs.map(tx =>
+'<tr>' +
+'<td class="text-mono" style="font-size:11px;">' + (tx.tx_hash || '').slice(0, 12) + '...</td>' +
+'<td class="text-mono" style="font-size:11px;">' + (tx.sender || '').slice(0, 12) + '...</td>' +
+'<td class="text-mono" style="font-size:11px;">' + (tx.recipient || '').slice(0, 12) + '...</td>' +
+'<td>' + (tx.amount / 100000000).toFixed(6) + '</td>' +
+'<td>' + ((tx.fee || 0) / 100000000).toFixed(6) + '</td>' +
+'</tr>'
+).join('');
+document.getElementById('explorerBlockResult').classList.remove('hidden');
+}
+
+function showExplorerAddress(data) {
+document.getElementById('expAddrValue').textContent = data.address;
+document.getElementById('expAddrBalance').textContent = data.formatted_balance.toFixed(8) + ' GBX';
+document.getElementById('expAddrTxCount').textContent = data.transaction_count;
+
+const tb = document.getElementById('expAddrTxTable').querySelector('tbody');
+tb.innerHTML = (data.transactions || []).map(tx => {
+const type = tx.sender === data.address ? 'Sent' : (tx.sender === '0' ? 'Coinbase' : 'Received');
+return '<tr>' +
+'<td class="text-mono" style="font-size:11px;">' + (tx.tx_hash || '').slice(0, 12) + '...</td>' +
+'<td>' + (tx.block_index !== undefined ? '#' + tx.block_index : '-') + '</td>' +
+'<td><span class="badge ' + (type === 'Received' ? 'badge-success' : type === 'Sent' ? 'badge-warning' : '') + '">' + type + '</span></td>' +
+'<td>' + (tx.amount / 100000000).toFixed(6) + ' GBX</td>' +
+'</tr>';
+}).join('');
+document.getElementById('explorerAddressResult').classList.remove('hidden');
+}
+
+function showExplorerTx(tx) {
+document.getElementById('expTxHash').textContent = tx.tx_hash;
+document.getElementById('expTxFrom').textContent = tx.sender;
+document.getElementById('expTxTo').textContent = tx.recipient;
+document.getElementById('expTxAmount').textContent = (tx.amount / 100000000).toFixed(8) + ' GBX';
+document.getElementById('expTxFee').textContent = ((tx.fee || 0) / 100000000).toFixed(8) + ' GBX';
+document.getElementById('expTxBlock').textContent = tx.block_index !== undefined && tx.block_index !== null ? '#' + tx.block_index + ' (' + (tx.block_hash || '').slice(0, 12) + '...)' : 'Pending (mempool)';
+document.getElementById('expTxTime').textContent = tx.timestamp ? new Date(tx.timestamp * 1000).toLocaleString() : '-';
+const statusEl = document.getElementById('expTxStatus');
+if (tx.status === 'pending') {
+statusEl.textContent = 'Pending';
+statusEl.className = 'badge badge-warning';
+} else {
+statusEl.textContent = 'Confirmed';
+statusEl.className = 'badge badge-success';
+}
+document.getElementById('explorerTxResult').classList.remove('hidden');
+}
+
+document.getElementById('explorerQuery').addEventListener('keydown', function(e) {
+if (e.key === 'Enter') explorerSearch();
+});
+
+// ---- NODES ----
+async function addNode() {
+const addr = document.getElementById('nodeAddress').value.trim();
+const port = parseInt(document.getElementById('nodePort').value);
+const resultDiv = document.getElementById('nodeAddResult');
+if (!addr || !port) { resultDiv.innerHTML = '<span style="color:#ff5252;">Enter address and port</span>'; return; }
+try {
+const data = await api('/nodes/register', { method: 'POST', body: JSON.stringify({ address: addr, port: port }) });
+resultDiv.innerHTML = '<span style="color:#00c853;">' + data.message + '</span>';
+refreshNodes();
+} catch(e) {
+resultDiv.innerHTML = '<span style="color:#ff5252;">Failed: ' + e.message + '</span>';
+}
+}
+
+function registerMyself() {
+document.getElementById('nodeAddress').value = '127.0.0.1';
+document.getElementById('nodePort').value = 8545;
+addNode();
+}
+
+async function resolveChain() {
+const resultDiv = document.getElementById('resolveResult');
+resultDiv.innerHTML = '<span style="color:#64b5f6;">Resolving...</span>';
+try {
+const data = await api('/nodes/resolve');
+if (data.chain_replaced) {
+resultDiv.innerHTML = '<span style="color:#00c853;">Chain replaced! New length: ' + data.chain_length + '</span>';
+refresh();
+} else {
+resultDiv.innerHTML = '<span style="color:#9ca3af;">Chain is already up to date (length: ' + data.chain_length + ')</span>';
+}
+} catch(e) {
+resultDiv.innerHTML = '<span style="color:#ff5252;">Failed: ' + e.message + '</span>';
+}
+}
+
+async function refreshNodes() {
+try {
+const data = await api('/peers/status');
+const peers = data.peers || [];
+document.getElementById('nodeCount').textContent = '(' + peers.length + ')';
+const tb = document.getElementById('nodeTable').querySelector('tbody');
+if (peers.length === 0) {
+tb.innerHTML = '<tr><td colspan="7" style="text-align:center;color:#6b7280;">No peers connected</td></tr>';
+return;
+}
+tb.innerHTML = peers.map(p => {
+const latency = p.reachable ? (p.latency_ms !== undefined ? p.latency_ms + 'ms' : '<1ms') : '-';
+const height = p.reachable ? (p.height !== undefined ? p.height : '?') : '-';
+const sync = p.reachable ? (p.is_synced ? '<span class="badge badge-success">Synced</span>' : '<span class="badge badge-warning">Behind</span>') : '<span class="badge">Unknown</span>';
+const status = p.reachable ? '<span class="status-dot online" style="vertical-align:middle;"></span><span style="font-size:12px;color:#00c853;">Online</span>' : '<span class="status-dot offline" style="vertical-align:middle;"></span><span style="font-size:12px;color:#ff5252;">Offline</span>';
+const addrEnc = encodeURIComponent(p.address);
+return '<tr>' +
+'<td class="text-mono" style="font-size:12px;">' + p.address + '</td>' +
+'<td>' + p.port + '</td>' +
+'<td>' + latency + '</td>' +
+'<td>' + height + '</td>' +
+'<td>' + sync + '</td>' +
+'<td>' + status + '</td>' +
+'<td><button class="btn btn-danger btn-sm" onclick="deleteNode(\'' + addrEnc + '\',' + p.port + ')" style="padding:4px 10px;font-size:11px;">Remove</button></td>' +
+'</tr>';
+}).join('');
+} catch(e) {
+document.getElementById('nodeCount').textContent = '(error)';
+}
+}
+
+async function deleteNode(address, port) {
+try {
+await api('/peers/' + encodeURIComponent(address) + '/' + port, { method: 'DELETE' });
+refreshNodes();
+} catch(e) {
+}
+}
+
 // ---- INIT ----
 refresh();
 setInterval(refresh, 5000);
 setInterval(refreshMining, 3000);
+setInterval(refreshNodes, 10000);
+refreshNodes();
 
 window.onQRScanned = onQRScanned;
 window.onBiometricResult = onBiometricResult;

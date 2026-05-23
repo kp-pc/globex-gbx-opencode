@@ -293,7 +293,40 @@ def get_mempool():
 
 @app.get("/peers")
 def get_peers():
-    return {"peers": blockchain.get_peers()}
+    return {"peers": blockchain.get_peers(), "count": len(blockchain.get_peers())}
+
+
+@app.get("/peers/status")
+def get_peers_status():
+    peers = blockchain.get_peers()
+    local_height = blockchain.get_chain_length()
+    enriched = []
+    for p in peers:
+        info = {"address": p["address"], "port": p["port"]}
+        try:
+            resp = requests.get(
+                f"http://{p['address']}:{p['port']}/",
+                timeout=3
+            )
+            if resp.status_code == 200:
+                data = resp.json()
+                info["reachable"] = True
+                info["height"] = data.get("chain_length", 0)
+                info["version"] = data.get("version", "")
+                info["latency_ms"] = round(resp.elapsed.total_seconds() * 1000)
+                info["is_synced"] = abs(local_height - info["height"]) <= 1
+            else:
+                info["reachable"] = False
+        except Exception:
+            info["reachable"] = False
+        enriched.append(info)
+    return {"peers": enriched, "count": len(enriched), "local_height": local_height}
+
+
+@app.delete("/peers/{address}/{port}")
+def delete_peer(address: str, port: int):
+    blockchain.remove_peer(address, port)
+    return {"message": "Peer removed", "peer": f"{address}:{port}"}
 
 
 @app.get("/stats")
@@ -544,6 +577,78 @@ def mining_estimate():
         "estimated_seconds_per_block": round(seconds_per_block, 1) if seconds_per_block != float("inf") else -1,
         "estimated_blocks_per_day": round(blocks_per_day, 4),
         "estimated_daily_gbx": round(estimated_daily / config.GBX, 8),
+    }
+
+
+@app.get("/block/{identifier}")
+def get_block(identifier: str):
+    try:
+        idx = int(identifier)
+        block = blockchain.get_block_by_index(idx)
+    except ValueError:
+        block = blockchain.get_block_by_hash(identifier)
+    if not block:
+        raise HTTPException(status_code=404, detail="Block not found")
+    last = blockchain.get_last_block()
+    confirmations = (last.index - block.index) + 1 if last else 1
+    d = block.to_dict()
+    d["confirmations"] = confirmations
+    from config import MAX_TARGET
+    d["difficulty"] = MAX_TARGET / block.target if block.target > 0 else 1
+    return d
+
+
+@app.get("/transaction/{tx_hash}")
+def get_transaction(tx_hash: str):
+    c = blockchain.conn.cursor()
+    c.execute("SELECT * FROM blocks ORDER BY idx ASC")
+    for row in c.fetchall():
+        txs = json.loads(row["transactions"])
+        for tx in txs:
+            if tx.get("tx_hash") == tx_hash:
+                tx["block_index"] = row["idx"]
+                tx["block_hash"] = row["hash"]
+                return tx
+    c.execute("SELECT * FROM mempool WHERE tx_hash = ?", (tx_hash,))
+    row = c.fetchone()
+    if row:
+        tx = {
+            "tx_hash": row["tx_hash"],
+            "sender": row["sender"],
+            "recipient": row["recipient"],
+            "amount": row["amount"],
+            "fee": row["fee"],
+            "timestamp": row["timestamp"],
+            "nonce": row["nonce"],
+            "signature": row["signature"],
+            "block_index": None,
+            "block_hash": None,
+            "status": "pending"
+        }
+        return tx
+    raise HTTPException(status_code=404, detail="Transaction not found")
+
+
+@app.get("/address/{address}")
+def get_address_info(address: str):
+    balance = blockchain.get_balance(address)
+    txs = []
+    c = blockchain.conn.cursor()
+    c.execute("SELECT * FROM blocks ORDER BY idx ASC")
+    for row in c.fetchall():
+        block_txs = json.loads(row["transactions"])
+        for tx in block_txs:
+            if tx.get("sender") == address or tx.get("recipient") == address:
+                tx["block_index"] = row["idx"]
+                tx["block_hash"] = row["hash"]
+                txs.append(tx)
+    txs.reverse()
+    return {
+        "address": address,
+        "balance": balance,
+        "formatted_balance": balance / config.GBX,
+        "transaction_count": len(txs),
+        "transactions": txs[:50]
     }
 
 

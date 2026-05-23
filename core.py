@@ -411,6 +411,11 @@ class Blockchain:
         """, (address, port, int(time.time())))
         self.conn.commit()
 
+    def remove_peer(self, address: str, port: int):
+        c = self.conn.cursor()
+        c.execute("DELETE FROM peers WHERE address = ? AND port = ?", (address, port))
+        self.conn.commit()
+
     def get_peers(self) -> list:
         c = self.conn.cursor()
         c.execute("SELECT * FROM peers ORDER BY last_seen DESC")
