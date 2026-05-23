@@ -1,6 +1,6 @@
 # Globex GBX
 
-A lightweight cryptocurrency optimised for ARM devices (Raspberry Pi, mobile).
+A lightweight cryptocurrency optimised for ARM devices (Raspberry Pi, mobile) with a full Android companion app.
 
 ## Features
 
@@ -15,9 +15,11 @@ A lightweight cryptocurrency optimised for ARM devices (Raspberry Pi, mobile).
 - **SQLite** persistence — lightweight, zero-config
 - **REST API** (FastAPI) with full node functionality
 - **CPU miner** with configurable threads
-- **Web dashboard** served by the node
-- **Staking** with lockup, rewards, and slashing
-- **Dev fund** with multi-sig and vesting
+- **Web dashboard** served by the node with real-time mining stats
+- **Staking** with lockup, rewards, and slashing events
+- **Dev fund** with 5% block-reward allocation, multi-sig vesting, and release proposals
+- **Charts & analytics** — balance history and validator analytics
+- **Android app** (Jetpack Compose, Hilt, Room, Navigation Compose, WorkManager)
 
 ## Quick Start
 
@@ -77,31 +79,84 @@ python cli.py balance --address <ADDRESS>
 | GET | `/chain` | Full blockchain |
 | GET | `/balance/{address}` | Address balance |
 | POST | `/transactions/new` | Submit transaction |
-| GET | `/mine?address=` | Mine a block |
-| POST | `/blocks/submit` | Submit mined block |
-| GET | `/blocks/latest` | Latest block |
+| GET | `/block/{identifier}` | Block by hash or height |
+| GET | `/transaction/{tx_hash}` | Transaction details |
+| GET | `/address/{address}` | Address info with transactions |
+| POST | `/wallet/create` | Generate new wallet |
+| POST | `/wallet/import` | Import wallet by private key |
+| POST | `/mining/start` | Start CPU mining session |
+| POST | `/mining/stop` | Stop mining session |
+| GET | `/mining/status` | Mining session status |
+| GET | `/mining/rewards/{address}` | Mining rewards summary |
 | POST | `/nodes/register` | Register peer |
 | GET | `/nodes/resolve` | Consensus resolution |
+| GET | `/peers/status` | Peer list with latency/height/sync status |
 | GET | `/mempool` | Pending transactions |
-| GET | `/peers` | Connected peers |
 | GET | `/stats` | Network stats |
+| GET | `/staking/dashboard/{address}` | Staking dashboard (stake/lock/rewards) |
+| GET | `/staking/validator/{address}/stats` | Validator stats (uptime/blocks/penalties) |
+| GET | `/fund/report` | Fund treasury dashboard |
+| POST | `/fund/propose` | Propose a fund release |
+| POST | `/fund/approve` | Approve a pending release |
+| GET | `/fund/transactions` | Fund transaction history |
+| GET | `/charts/balance-history` | Balance history for charts |
+| GET | `/charts/validator-analytics` | Validator analytics with history |
 
 ## Architecture
 
 ```
-globex-gbx-opencode/
-├── config.py      # Network parameters
-├── utils.py       # Hashing, Base58, Merkle
-├── core.py        # Block, Blockchain, PoW, mempool, SQLite
-├── wallet.py      # ECDSA keys, signing, verification
-├── node.py        # FastAPI REST server
-├── miner.py       # CPU mining client
-├── staking.py     # Hybrid PoW+PoS, validator staking
-├── fund.py        # Dev fund, multi-sig, vesting
-├── cli.py         # Command-line interface
-├── gui/           # Web dashboard
+globex-gbx-opencode/           # Python backend
+├── config.py                  # Network parameters
+├── utils.py                   # Hashing, Base58, Merkle
+├── core.py                    # Block, Blockchain, PoW, mempool, SQLite
+├── wallet.py                  # ECDSA keys, signing, verification
+├── node.py                    # FastAPI REST server
+├── miner.py                   # CPU mining client
+├── staking.py                 # Hybrid PoW+PoS, validator staking
+├── fund.py                    # Dev fund, multi-sig, vesting
+├── cli.py                     # Command-line interface
+├── gui/                       # Web dashboard (10 screens)
 └── requirements.txt
+
+globex-android-project/        # Android companion app (13 modules)
+├── app/                       # Main app module (NavGraph, MainActivity)
+├── core/                      # Networking, database, repository
+├── feature_wallet/            # Wallet UI (balance, send, receive)
+├── feature_mining/            # Mining UI with foreground service
+├── feature_explorer/          # Blockchain explorer UI
+├── feature_nodes/             # Peer management UI
+├── feature_staking/           # Staking dashboard UI
+├── feature_fund/              # Fund treasury UI
+├── feature_settings/          # App settings UI
+└── build.gradle.kts           # Hilt, Compose, Room config
 ```
+
+## Android App
+
+The Android app is built with **Modern Android Development** principles:
+
+- **Language**: Kotlin 1.9+
+- **UI**: Jetpack Compose & Material 3
+- **DI**: Hilt
+- **Networking**: Retrofit 2 + OkHttp
+- **Persistence**: Room (SQLite)
+- **Security**: Android Keystore (AES/GCM)
+- **Navigation**: Navigation Compose (single-activity)
+- **Background Services**: WorkManager for mining, foreground service
+
+### Screens
+
+| Screen | Description |
+|---|---|
+| Home | Node status, balance, quick actions |
+| Wallet | Balance, send, receive, import/export |
+| Mine | Start/stop mining, hashrate, rewards |
+| Explorer | Block, transaction, and address search |
+| Nodes | Peer monitor with latency tracking |
+| Stake | Staking dashboard, validator stats, slashing history |
+| Fund | Treasury dashboard, propose/approve releases |
+| Validator | Detailed validator analytics |
+| Settings | Node connection, theme, security |
 
 ## License
 
