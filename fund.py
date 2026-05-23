@@ -124,6 +124,19 @@ class DevFund:
             "pending_releases": self._get_pending_releases(),
         }
 
+    def get_transactions(self, limit: int = 50) -> list:
+        c = self.conn.cursor()
+        c.execute("""SELECT * FROM fund_transactions
+                     ORDER BY timestamp DESC LIMIT ?""", (limit,))
+        return [{
+            "id": row["id"],
+            "block_index": row["block_index"],
+            "amount": row["amount"],
+            "source": row["source"],
+            "timestamp": row["timestamp"],
+            "description": row["description"],
+        } for row in c.fetchall()]
+
     def _get_pending_releases(self) -> list:
         c = self.conn.cursor()
         c.execute("""SELECT * FROM fund_releases

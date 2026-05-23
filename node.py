@@ -16,6 +16,7 @@ import config
 from core import Blockchain
 from wallet import Wallet, WalletError, create_transaction
 from staking import Staker
+from fund import DevFund
 
 app = FastAPI(title="Globex GBX Node", version="0.1.0")
 
@@ -29,6 +30,7 @@ app.add_middleware(
 
 blockchain = Blockchain(db_path="globex_data/blockchain.db")
 staker = Staker(blockchain.conn)
+devfund = DevFund(blockchain.conn)
 mining_lock = threading.Lock()
 
 WALLETS_DIR = Path(__file__).parent / "globex_data" / "wallets"
@@ -97,6 +99,9 @@ def _mining_worker(address: str, num_threads: int):
             block = blockchain.mine_block(address)
             if block:
                 staker.on_block_mined(address, block.index, block.hash)
+                fund_share = block.transactions[0]["amount"] * config.FUND_REWARD_SHARE // 100 if block.transactions else 0
+                if fund_share > 0:
+                    devfund.contribute(block.index, fund_share, "block_reward")
                 reward = block.transactions[0]["amount"] if block.transactions else 0
                 total_fees = sum(tx.get("fee", 0) for tx in block.transactions[1:])
                 if address not in mining_rewards:
@@ -112,6 +117,15 @@ def _mining_worker(address: str, num_threads: int):
                     "block_height": block.index,
                     "reward": reward,
                 })
+                balance_history_store.append({
+                    "t": now,
+                    "block_height": block.index,
+                    "total_supply": sum(blockchain.balances.values()),
+                    "fund_balance": devfund.get_available_balance(block.index),
+                    "fund_vested": devfund.get_vested_amount(block.index),
+                })
+                if len(balance_history_store) > 1000:
+                    balance_history_store[:] = balance_history_store[-500:]
                 if len(mining_history) > 1000:
                     mining_history[:] = mining_history[-500:]
         finally:
@@ -192,6 +206,9 @@ def mine(address: str):
         if not block:
             raise HTTPException(status_code=500, detail="Mining failed")
         staker.on_block_mined(address, block.index, block.hash)
+        fund_share = block.transactions[0]["amount"] * config.FUND_REWARD_SHARE // 100 if block.transactions else 0
+        if fund_share > 0:
+            devfund.contribute(block.index, fund_share, "block_reward")
         return {
             "message": "Block mined",
             "index": block.index,
@@ -521,6 +538,63 @@ def staking_validator_stats(address: str):
 @app.get("/staking/slashing-events")
 def staking_slashing_events():
     return {"events": staker.get_slashing_events(limit=50), "count": len(staker.get_slashing_events(limit=50))}
+
+
+# ---- FUND (Phase 12) ----
+@app.get("/fund/report")
+def fund_report():
+    last = blockchain.get_last_block()
+    current_block = last.index if last else 0
+    return devfund.get_report(current_block)
+
+
+class FundProposeRequest(BaseModel):
+    amount: int
+    recipient: str
+
+
+class FundApproveRequest(BaseModel):
+    release_id: int
+    signer: str
+
+
+@app.post("/fund/propose")
+def fund_propose(req: FundProposeRequest):
+    release_id = devfund.propose_release(req.amount, req.recipient)
+    return {"message": "Release proposed", "release_id": release_id, "amount": req.amount, "recipient": req.recipient}
+
+
+@app.post("/fund/approve")
+def fund_approve(req: FundApproveRequest):
+    result = devfund.approve_release(req.release_id, req.signer)
+    if result is None:
+        return {"message": "Approval recorded or invalid", "released": False}
+    return {"message": "Release approved and executed", "released": True, "amount": result}
+
+
+@app.get("/fund/transactions")
+def fund_transactions():
+    return {"transactions": devfund.get_transactions(limit=50)}
+
+
+# ---- CHARTS & ANALYTICS (Phase 16) ----
+balance_history_store = []
+
+@app.get("/charts/balance-history")
+def charts_balance_history():
+    return {"history": balance_history_store[-100:]}
+
+
+@app.get("/charts/validator-analytics")
+def charts_validator_analytics():
+    validators = staker.get_validators()
+    last = blockchain.get_last_block()
+    return {
+        "validators": validators,
+        "total_validators": len(validators),
+        "block_height": last.index if last else 0,
+        "history": balance_history_store[-50:],
+    }
 
 
 @app.post("/mining/start")
