@@ -76,6 +76,48 @@ class StakeRequest(BaseModel):
     amount: int
 
 
+class MiningStartRequest(BaseModel):
+    address: str
+    threads: int = 1
+
+
+mining_rewards = {}
+mining_history = []
+mining_thread = None
+mining_stop_event = threading.Event()
+
+
+def _mining_worker(address: str, num_threads: int):
+    mining_stop_event.clear()
+    while not mining_stop_event.is_set():
+        if not mining_lock.acquire(blocking=False):
+            time.sleep(0.5)
+            continue
+        try:
+            block = blockchain.mine_block(address)
+            if block:
+                reward = block.transactions[0]["amount"] if block.transactions else 0
+                total_fees = sum(tx.get("fee", 0) for tx in block.transactions[1:])
+                if address not in mining_rewards:
+                    mining_rewards[address] = {"blocks": 0, "rewards": 0, "fees": 0}
+                mining_rewards[address]["blocks"] += 1
+                mining_rewards[address]["rewards"] += reward
+                mining_rewards[address]["fees"] += total_fees
+                now = time.time()
+                mining_history.append({
+                    "t": now,
+                    "hash_rate": round(blockchain.mining_stats.hash_rate, 1),
+                    "difficulty": config.MAX_TARGET / block.target if block.target > 0 else 1,
+                    "block_height": block.index,
+                    "reward": reward,
+                })
+                if len(mining_history) > 1000:
+                    mining_history[:] = mining_history[-500:]
+        finally:
+            mining_lock.release()
+        time.sleep(0.1)
+
+
 @app.get("/")
 def root():
     last = blockchain.get_last_block()
@@ -418,6 +460,91 @@ def staking_register(req: StakeRequest):
 @app.get("/staking/checkpoints")
 def staking_checkpoints():
     return {"checkpoints": staker.get_checkpoints(limit=20)}
+
+
+@app.post("/mining/start")
+def mining_start(req: MiningStartRequest):
+    global mining_thread
+    if mining_thread and mining_thread.is_alive():
+        return {"message": "Mining already running", "address": req.address, "threads": req.threads}
+    if not req.address:
+        raise HTTPException(400, "Miner address required")
+    if req.threads < 1 or req.threads > 16:
+        raise HTTPException(400, "Threads must be 1-16")
+    mining_thread = threading.Thread(
+        target=_mining_worker, args=(req.address, req.threads), daemon=True
+    )
+    mining_thread.start()
+    return {"message": "Mining started", "address": req.address, "threads": req.threads}
+
+
+@app.post("/mining/stop")
+def mining_stop():
+    global mining_thread
+    mining_stop_event.set()
+    if mining_thread:
+        mining_thread.join(timeout=5)
+        mining_thread = None
+    blockchain.mining_stats.is_mining = False
+    return {"message": "Mining stopped"}
+
+
+@app.get("/mining/status")
+def mining_status():
+    running = mining_thread is not None and mining_thread.is_alive()
+    s = blockchain.mining_stats
+    last = blockchain.get_last_block()
+    target_max = config.MAX_TARGET
+    difficulty = target_max / last.target if last and last.target > 0 else 1
+    return {
+        "running": running,
+        "address": getattr(mining_thread, "_address", ""),
+        "threads": getattr(mining_thread, "_threads", 0),
+        "hash_rate": s.hash_rate,
+        "is_mining": s.is_mining,
+        "total_hashes": s.total_hashes,
+        "difficulty": difficulty,
+        "block_height": last.index if last else 0,
+        "block_reward": blockchain.get_block_reward(last.index + 1) if last else 0,
+    }
+
+
+@app.get("/mining/rewards/{address}")
+def mining_rewards_addr(address: str):
+    data = mining_rewards.get(address, {"blocks": 0, "rewards": 0, "fees": 0})
+    return {
+        "address": address,
+        "blocks_mined": data["blocks"],
+        "total_rewards": data["rewards"],
+        "total_fees": data["fees"],
+        "formatted_rewards": data["rewards"] / config.GBX,
+        "formatted_fees": data["fees"] / config.GBX,
+    }
+
+
+@app.get("/mining/history")
+def mining_chart_history():
+    return {"history": mining_history[-200:]}
+
+
+@app.get("/mining/estimate")
+def mining_estimate():
+    last = blockchain.get_last_block()
+    target_max = config.MAX_TARGET
+    difficulty = target_max / last.target if last and last.target > 0 else 1
+    hr = blockchain.mining_stats.hash_rate
+    reward = blockchain.get_block_reward((last.index + 1) if last else 0)
+    seconds_per_block = (difficulty * 2**32) / hr if hr > 0 else float("inf")
+    blocks_per_day = 86400 / seconds_per_block if seconds_per_block > 0 and seconds_per_block != float("inf") else 0
+    estimated_daily = blocks_per_day * reward
+    return {
+        "hash_rate": hr,
+        "difficulty": difficulty,
+        "block_reward": reward,
+        "estimated_seconds_per_block": round(seconds_per_block, 1) if seconds_per_block != float("inf") else -1,
+        "estimated_blocks_per_day": round(blocks_per_day, 4),
+        "estimated_daily_gbx": round(estimated_daily / config.GBX, 8),
+    }
 
 
 gui_dir = Path(__file__).parent / "gui"

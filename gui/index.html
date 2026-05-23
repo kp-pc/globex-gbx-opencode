@@ -86,6 +86,7 @@ tr:hover td { background: #1a1f2e; }
 
 <nav class="nav" id="mainNav">
 <button class="nav-btn active" onclick="showPage('dashboard')">Dashboard</button>
+<button class="nav-btn" onclick="showPage('mining')">Mining</button>
 <button class="nav-btn" onclick="showPage('wallet')">Wallet</button>
 <button class="nav-btn" onclick="showPage('send')">Send</button>
 <button class="nav-btn" onclick="showPage('receive')">Receive</button>
@@ -288,6 +289,57 @@ tr:hover td { background: #1a1f2e; }
 </div>
 </div>
 
+<!-- ==================== MINING PAGE ==================== -->
+<div class="page" id="page-mining">
+<div class="grid">
+<div class="card">
+<h3>Mining Control</h3>
+<div class="form-group">
+<label>Reward Address</label>
+<input class="input" id="miningAddress" placeholder="Your GBX address">
+</div>
+<div class="form-group">
+<label>Threads (1-16)</label>
+<input class="input" id="miningThreads" type="number" min="1" max="16" value="1">
+</div>
+<div class="row">
+<button class="btn btn-primary btn-sm" onclick="startMining()" id="startMiningBtn">Start Mining</button>
+<button class="btn btn-danger btn-sm hidden" onclick="stopMining()" id="stopMiningBtn">Stop Mining</button>
+<button class="btn btn-secondary btn-sm" onclick="fillMiningAddress()">My Wallet</button>
+</div>
+<div id="miningControlResult" style="margin-top:8px;font-size:13px;"></div>
+</div>
+<div class="card">
+<h3>Mining Status</h3>
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+<div><div style="font-size:11px;color:#6b7280;">Status</div><div style="font-size:18px;font-weight:700;color:#f0f4ff;" id="miningStatusText">Idle</div></div>
+<div><div style="font-size:11px;color:#6b7280;">Hash Rate</div><div style="font-size:18px;font-weight:700;color:#f0f4ff;" id="miningHashRate">-</div></div>
+<div><div style="font-size:11px;color:#6b7280;">Total Hashes</div><div style="font-size:18px;font-weight:700;color:#f0f4ff;" id="miningTotalHashes">-</div></div>
+<div><div style="font-size:11px;color:#6b7280;">Last Block</div><div style="font-size:14px;font-weight:700;color:#f0f4ff;" id="miningLastBlock">-</div></div>
+</div>
+</div>
+<div class="card">
+<h3>Rewards</h3>
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+<div><div style="font-size:11px;color:#6b7280;">Blocks Mined</div><div style="font-size:18px;font-weight:700;color:#f0f4ff;" id="rewardBlocks">0</div></div>
+<div><div style="font-size:11px;color:#6b7280;">Total Rewards</div><div style="font-size:18px;font-weight:700;color:#f0f4ff;" id="rewardTotal">0 GBX</div></div>
+<div><div style="font-size:11px;color:#6b7280;">Total Fees</div><div style="font-size:18px;font-weight:700;color:#f0f4ff;" id="rewardFees">0 GBX</div></div>
+<div><div style="font-size:11px;color:#6b7280;">Est. Daily</div><div style="font-size:18px;font-weight:700;color:#f0f4ff;" id="rewardEstDaily">-</div></div>
+</div>
+</div>
+</div>
+
+<div class="section"><h2>Hash Rate History</h2>
+<div class="card"><canvas id="hashRateChart" height="200"></canvas></div>
+</div>
+<div class="section"><h2>Difficulty Trend</h2>
+<div class="card"><canvas id="difficultyChart" height="200"></canvas></div>
+</div>
+<div class="section"><h2>Rewards Trend</h2>
+<div class="card"><canvas id="rewardsChart" height="200"></canvas></div>
+</div>
+</div>
+
 <!-- ==================== SECURITY PAGE ==================== -->
 <div class="page" id="page-security">
 <div class="card">
@@ -353,6 +405,7 @@ tr:hover td { background: #1a1f2e; }
 
 </div>
 
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 <script>
 const API = window.location.origin;
 
@@ -376,7 +429,7 @@ function showPage(name) {
 document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
 document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
 document.getElementById('page-' + name).classList.add('active');
-const idx = {dashboard:0, wallet:1, send:2, receive:3, security:4}[name];
+const idx = {dashboard:0, mining:1, wallet:2, send:3, receive:4, security:5}[name];
 if (idx !== undefined) {
 document.querySelectorAll('.nav-btn')[idx].classList.add('active');
 }
@@ -386,7 +439,7 @@ applyScreenshotProtection(name);
 function applyScreenshotProtection(page) {
 const android = getAndroid();
 if (!android) return;
-const sensitive = ['wallet', 'send', 'receive', 'security'];
+const sensitive = ['wallet', 'send', 'receive', 'security', 'mining'];
 if (sensitive.includes(page)) {
 android.enableScreenshotProtection();
 if (document.getElementById('screenshotToggle')) {
@@ -890,9 +943,134 @@ window._pendingKeyAddress = null;
 }
 }
 
+// ---- MINING ----
+function fillMiningAddress() {
+if (!currentWallet) { alert('Open a wallet first'); return; }
+document.getElementById('miningAddress').value = currentWallet.address;
+}
+
+async function startMining() {
+const addr = document.getElementById('miningAddress').value.trim();
+const threads = parseInt(document.getElementById('miningThreads').value) || 1;
+if (!addr) { document.getElementById('miningControlResult').innerHTML = '<div class="alert alert-error">Enter a reward address</div>'; return; }
+if (threads < 1 || threads > 16) { document.getElementById('miningControlResult').innerHTML = '<div class="alert alert-error">Threads must be 1-16</div>'; return; }
+try {
+const data = await api('/mining/start', { method: 'POST', body: JSON.stringify({ address: addr, threads }) });
+document.getElementById('miningControlResult').innerHTML = '<div class="alert alert-success">Mining started</div>';
+document.getElementById('startMiningBtn').classList.add('hidden');
+document.getElementById('stopMiningBtn').classList.remove('hidden');
+} catch(e) {
+document.getElementById('miningControlResult').innerHTML = '<div class="alert alert-error">Failed: ' + e.message + '</div>';
+}
+}
+
+async function stopMining() {
+try {
+await api('/mining/stop', { method: 'POST', body: '{}' });
+document.getElementById('miningControlResult').innerHTML = '<div class="alert alert-info">Mining stopped</div>';
+document.getElementById('startMiningBtn').classList.remove('hidden');
+document.getElementById('stopMiningBtn').classList.add('hidden');
+} catch(e) {
+document.getElementById('miningControlResult').innerHTML = '<div class="alert alert-error">Failed: ' + e.message + '</div>';
+}
+}
+
+let hashRateChart = null;
+let difficultyChart = null;
+let rewardsChart = null;
+
+async function refreshMining() {
+try {
+const status = await api('/mining/status');
+const running = status.running;
+document.getElementById('miningStatusText').textContent = running ? 'Running' : 'Idle';
+document.getElementById('miningStatusText').style.color = running ? '#00c853' : '#6b7280';
+document.getElementById('miningHashRate').textContent = formatHashRate(status.hash_rate);
+document.getElementById('miningTotalHashes').textContent = status.total_hashes.toLocaleString();
+document.getElementById('miningLastBlock').textContent = '#' + status.block_height;
+
+if (running) {
+document.getElementById('startMiningBtn').classList.add('hidden');
+document.getElementById('stopMiningBtn').classList.remove('hidden');
+} else {
+document.getElementById('startMiningBtn').classList.remove('hidden');
+document.getElementById('stopMiningBtn').classList.add('hidden');
+}
+
+const addr = document.getElementById('miningAddress').value.trim();
+if (addr) {
+try {
+const rew = await api('/mining/rewards/' + encodeURIComponent(addr));
+document.getElementById('rewardBlocks').textContent = rew.blocks_mined;
+document.getElementById('rewardTotal').textContent = rew.formatted_rewards.toFixed(8) + ' GBX';
+document.getElementById('rewardFees').textContent = rew.formatted_fees.toFixed(8) + ' GBX';
+} catch(e) {}
+
+try {
+const est = await api('/mining/estimate');
+document.getElementById('rewardEstDaily').textContent = est.hash_rate > 0 ? est.estimated_daily_gbx.toFixed(8) + ' GBX' : '-';
+} catch(e) {}
+}
+
+try {
+const hist = await api('/mining/history');
+const h = hist.history || [];
+updateCharts(h);
+} catch(e) {}
+} catch(e) {}
+}
+
+function updateCharts(history) {
+if (!history || history.length < 2) return;
+const labels = history.map(p => new Date(p.t * 1000).toLocaleTimeString());
+const hashRates = history.map(p => p.hash_rate);
+const difficulties = history.map(p => p.difficulty);
+const rewards = history.map(p => (p.reward || 0) / 100000000);
+
+if (!hashRateChart) {
+const ctx1 = document.getElementById('hashRateChart').getContext('2d');
+hashRateChart = new Chart(ctx1, {
+type: 'line',
+data: { labels, datasets: [{ label: 'Hash Rate (H/s)', data: hashRates, borderColor: '#00c853', backgroundColor: '#00c85322', fill: true, tension: 0.3, pointRadius: 1 }] },
+options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { labels: { color: '#9ca3af' } } }, scales: { x: { ticks: { color: '#6b7280', maxTicksLimit: 10 } }, y: { ticks: { color: '#6b7280' } } } }
+});
+} else {
+hashRateChart.data.labels = labels;
+hashRateChart.data.datasets[0].data = hashRates;
+hashRateChart.update('none');
+}
+
+if (!difficultyChart) {
+const ctx2 = document.getElementById('difficultyChart').getContext('2d');
+difficultyChart = new Chart(ctx2, {
+type: 'line',
+data: { labels, datasets: [{ label: 'Difficulty', data: difficulties, borderColor: '#64b5f6', backgroundColor: '#2196f322', fill: true, tension: 0.3, pointRadius: 1 }] },
+options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { labels: { color: '#9ca3af' } } }, scales: { x: { ticks: { color: '#6b7280', maxTicksLimit: 10 } }, y: { ticks: { color: '#6b7280' } } } }
+});
+} else {
+difficultyChart.data.labels = labels;
+difficultyChart.data.datasets[0].data = difficulties;
+difficultyChart.update('none');
+}
+
+if (!rewardsChart) {
+const ctx3 = document.getElementById('rewardsChart').getContext('2d');
+rewardsChart = new Chart(ctx3, {
+type: 'bar',
+data: { labels, datasets: [{ label: 'Reward (GBX)', data: rewards, backgroundColor: '#ff980066', borderColor: '#ff9800', borderWidth: 1 }] },
+options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { labels: { color: '#9ca3af' } } }, scales: { x: { ticks: { color: '#6b7280', maxTicksLimit: 10 } }, y: { ticks: { color: '#6b7280' } } } }
+});
+} else {
+rewardsChart.data.labels = labels;
+rewardsChart.data.datasets[0].data = rewards;
+rewardsChart.update('none');
+}
+}
+
 // ---- INIT ----
 refresh();
 setInterval(refresh, 5000);
+setInterval(refreshMining, 3000);
 
 window.onQRScanned = onQRScanned;
 window.onBiometricResult = onBiometricResult;
